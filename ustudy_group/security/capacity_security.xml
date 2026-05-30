@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================
+         GROUP: Capacity Override Manager
+         Members of this group may bypass the *soft* group/room capacity
+         limit and enroll extra students (overbooking). Regular users are
+         held to the limit unless the group itself has 'Allow Overbooking'.
+    ============================================================ -->
+    <record id="group_capacity_manager" model="res.groups">
+        <field name="name">Academic: Capacity Override</field>
+        <field name="category_id" ref="base.module_category_human_resources"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- System administrators automatically get the override right. -->
+    <record id="base.group_system" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('ustudy_group.group_capacity_manager'))]"/>
+    </record>
+</odoo>

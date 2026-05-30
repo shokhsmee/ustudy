@@ -1,69 +1,167 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    
-    <!-- Finance Form View -->
+
+    <!-- ============================================================
+         FINANCE RECORD: FORM VIEW
+    ============================================================ -->
     <record id="view_cc_finance_form" model="ir.ui.view">
         <field name="name">cc.finance.form</field>
         <field name="model">cc.finance</field>
         <field name="arch" type="xml">
             <form string="Finance Record">
                 <header>
-                    <button name="action_confirm" string="Confirm" type="object" 
-                            class="oe_highlight" invisible="state != 'draft'"/>
-                    <button name="action_cancel" string="Cancel" type="object" 
+                    <button name="action_confirm"
+                            string="Confirm"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_process_via_gateway"
+                            string="Process via Gateway"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft' or not gateway_id"/>
+                    <button name="action_verify_gateway_payment"
+                            string="Verify Gateway"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or not gateway_reference"/>
+                    <button name="action_cancel"
+                            string="Cancel"
+                            type="object"
+                            class="btn-secondary"
                             invisible="state != 'confirmed'"/>
-                    <button name="action_reset_to_draft" string="Reset to Draft" type="object" 
-                            invisible="state == 'draft'"/>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed"/>
+                    <button name="action_reset_to_draft"
+                            string="Reset to Draft"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'cancelled'"/>
+                    <button name="action_create_refund"
+                            string="Create Refund"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="not is_refundable"
+                            groups="edu_finance.group_refund_approver"/>
+                    <field name="state"
+                           widget="statusbar"
+                           statusbar_visible="draft,confirmed"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_move"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-book"
+                                invisible="not move_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="move_name" nolabel="1"/>
+                                </span>
+                                <span class="o_stat_text">Ledger Entry</span>
+                            </div>
+                        </button>
+                        <button name="action_view_refunds"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-undo"
+                                invisible="refund_count == 0">
+                            <field name="refund_count" widget="statinfo" string="Refunds"/>
+                        </button>
+                    </div>
+
                     <div class="oe_title">
                         <h1>
                             <field name="name" readonly="1"/>
                         </h1>
                     </div>
-                    
+
                     <group>
-                        <group>
-                            <field name="date"/>
-                            <field name="transaction_type" widget="radio"/>
-                            <field name="payment_type_id"/>
-                            <field name="payment_method_id"/>
+                        <group string="Transaction">
+                            <field name="date"
+                                   readonly="state == 'confirmed'"/>
+                            <field name="transaction_type"
+                                   widget="radio"
+                                   readonly="state == 'confirmed'"/>
+                            <field name="payment_type_id"
+                                   readonly="state == 'confirmed'"/>
+                            <field name="payment_method_id"
+                                   readonly="state == 'confirmed'"/>
                         </group>
-                        <group>
-                            <field name="amount" widget="monetary" options="{'currency_field': 'currency_id'}"/>
-                            <field name="balance_amount" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                        <group string="Amount">
+                            <field name="amount"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"
+                                   readonly="state == 'confirmed'"/>
+                            <field name="balance_amount"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"
+                                   readonly="1"/>
+                            <field name="refunded_amount"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"
+                                   readonly="1"
+                                   invisible="refunded_amount == 0"/>
                             <field name="currency_id" invisible="1"/>
                             <field name="company_id" invisible="1"/>
+                            <field name="is_refundable" invisible="1"/>
+                            <field name="move_id" invisible="1"/>
+                            <field name="refund_count" invisible="1"/>
                         </group>
                     </group>
-                    
+
                     <group string="Related To" name="related_to_group">
                         <group>
-                            <field name="partner_id" 
-                                   string="Student/Contact"
-                                   invisible="payment_type_id and payment_type_id.type_category in ['teacher', 'employee']"/>
+                            <field name="partner_id"
+                                   string="Student / Contact"
+                                   readonly="state == 'confirmed'"/>
                         </group>
                         <group>
                             <field name="employee_id"
-                                   string="Teacher/Employee"
-                                   invisible="payment_type_id and payment_type_id.type_category == 'student'"/>
+                                   string="Employee"
+                                   readonly="state == 'confirmed'"/>
                         </group>
                     </group>
-                    
-                    <!-- <group>
-                        <field name="crm_request_id"/>
-                    </group> -->
-                    
+
                     <group>
-                        <field name="description" placeholder="Add description here..."/>
+                        <field name="description"
+                               placeholder="Transaction description..."
+                               readonly="state == 'confirmed'"/>
                     </group>
-                    
+
                     <notebook>
-                        <page string="Notes">
-                            <field name="notes" placeholder="Additional notes..."/>
+                        <page string="Gateway" name="gateway"
+                              invisible="not gateway_id and state != 'draft'">
+                            <group>
+                                <group string="Payment Gateway">
+                                    <field name="gateway_id"
+                                           readonly="state == 'confirmed'"/>
+                                    <field name="gateway_reference" readonly="1"/>
+                                    <field name="gateway_state" readonly="1"
+                                           widget="badge"
+                                           decoration-warning="gateway_state == 'pending'"
+                                           decoration-success="gateway_state == 'verified'"
+                                           decoration-danger="gateway_state == 'failed'"
+                                           invisible="not gateway_state"/>
+                                </group>
+                            </group>
                         </page>
-                        <page string="Attachments">
+                        <page string="Ledger" name="ledger"
+                              invisible="not move_id">
+                            <group>
+                                <group string="Journal Entry">
+                                    <field name="move_id" readonly="1"/>
+                                    <field name="move_state" readonly="1"
+                                           widget="badge"
+                                           decoration-success="move_state == 'posted'"
+                                           decoration-muted="move_state == 'cancel'"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Notes" name="notes">
+                            <field name="notes"
+                                   placeholder="Internal notes..."
+                                   readonly="state == 'confirmed'"/>
+                        </page>
+                        <page string="Attachments" name="attachments">
                             <field name="attachment_ids" widget="many2many_binary"/>
                         </page>
                     </notebook>
@@ -72,26 +170,33 @@
             </form>
         </field>
     </record>
-    
-    <!-- Finance Tree View -->
+
+    <!-- ============================================================
+         FINANCE RECORD: LIST VIEW
+    ============================================================ -->
     <record id="view_cc_finance_tree" model="ir.ui.view">
         <field name="name">cc.finance.list</field>
         <field name="model">cc.finance</field>
         <field name="arch" type="xml">
             <list string="Finance" js_class="finance_dashboard_list"
-                decoration-success="transaction_type == 'income'"
-                decoration-danger="transaction_type == 'expense'">
+                  decoration-success="transaction_type == 'income' and state == 'confirmed'"
+                  decoration-danger="transaction_type == 'expense' and state == 'confirmed'"
+                  decoration-muted="state == 'cancelled'">
                 <field name="date"/>
-                <field name="name"/>
+                <field name="name" decoration-bf="1"/>
                 <field name="partner_id"/>
-                <field name="employee_id"/>
+                <field name="employee_id" optional="hide"/>
                 <field name="transaction_type"/>
                 <field name="payment_type_id"/>
                 <field name="payment_method_id"/>
-                <field name="amount" sum="Total Amount" widget="monetary" optional="hide"/>
-                <field name="balance_amount" sum="Total Balance" widget="monetary"/>
-                <field name="company_id" optional="hide"/>
-                <field name="state" widget="badge" 
+                <field name="amount" sum="Total" widget="monetary"/>
+                <field name="balance_amount" sum="Balance" widget="monetary" optional="hide"/>
+                <field name="move_name" string="Ledger" optional="show"/>
+                <field name="gateway_state" widget="badge" optional="hide"
+                       decoration-warning="gateway_state == 'pending'"
+                       decoration-success="gateway_state == 'verified'"
+                       decoration-danger="gateway_state == 'failed'"/>
+                <field name="state" widget="badge"
                        decoration-success="state == 'confirmed'"
                        decoration-info="state == 'draft'"
                        decoration-danger="state == 'cancelled'"/>
@@ -99,8 +204,10 @@
             </list>
         </field>
     </record>
-    
-    <!-- Finance Search View -->
+
+    <!-- ============================================================
+         FINANCE RECORD: SEARCH VIEW
+    ============================================================ -->
     <record id="view_cc_finance_search" model="ir.ui.view">
         <field name="name">cc.finance.search</field>
         <field name="model">cc.finance</field>
@@ -111,85 +218,82 @@
                 <field name="employee_id"/>
                 <field name="payment_type_id"/>
                 <field name="payment_method_id"/>
-                
-                <filter string="Income" name="filter_income" domain="[('transaction_type', '=', 'income')]"/>
-                <filter string="Expense" name="filter_expense" domain="[('transaction_type', '=', 'expense')]"/>
-                
+                <field name="move_id" string="Ledger Entry"/>
+
+                <filter string="Income" name="filter_income"
+                        domain="[('transaction_type', '=', 'income')]"/>
+                <filter string="Expense" name="filter_expense"
+                        domain="[('transaction_type', '=', 'expense')]"/>
                 <separator/>
-                <filter string="Draft" name="filter_draft" domain="[('state', '=', 'draft')]"/>
-                <filter string="Confirmed" name="filter_confirmed" domain="[('state', '=', 'confirmed')]"/>
-                <filter string="Cancelled" name="filter_cancelled" domain="[('state', '=', 'cancelled')]"/>
-                
+                <filter string="Draft" name="filter_draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="Confirmed" name="filter_confirmed"
+                        domain="[('state', '=', 'confirmed')]"/>
+                <filter string="Cancelled" name="filter_cancelled"
+                        domain="[('state', '=', 'cancelled')]"/>
                 <separator/>
-                <filter string="Today" name="filter_today" domain="[('date', '=', context_today())]"/>
-                <filter string="This Week" name="filter_this_week" domain="[('date', '&gt;=', (context_today() - relativedelta(weeks=1)))]"/>
-                <filter string="This Month" name="filter_this_month" domain="[('date', '&gt;=', (context_today() - relativedelta(day=1)))]"/>
-                <filter string="This Year" name="filter_this_year" domain="[('date', '&gt;=', (context_today() - relativedelta(month=1, day=1)))]"/>
-                
-                <!-- <group expand="0" string="Group By">
-                    <filter string="Transaction Type" name="group_transaction_type" context="{'group_by': 'transaction_type'}"/>
-                    <filter string="Payment Type" name="group_payment_type" context="{'group_by': 'payment_type_id'}"/>
-                    <filter string="Payment Method" name="group_payment_method" context="{'group_by': 'payment_method_id'}"/>
-                    <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
-                    <filter string="Date" name="group_date" context="{'group_by': 'date'}"/>
-                </group> -->
+                <filter string="Today" name="filter_today"
+                        domain="[('date', '=', context_today())]"/>
+                <filter string="This Week" name="filter_this_week"
+                        domain="[('date', '&gt;=', (context_today() - relativedelta(weeks=1)))]"/>
+                <filter string="This Month" name="filter_this_month"
+                        domain="[('date', '&gt;=', (context_today() - relativedelta(day=1)))]"/>
+                <filter string="This Year" name="filter_this_year"
+                        domain="[('date', '&gt;=', (context_today() - relativedelta(month=1, day=1)))]"/>
             </search>
         </field>
     </record>
-    
-    <!-- Finance Graph View -->
+
+    <!-- ============================================================
+         FINANCE RECORD: GRAPH VIEW
+    ============================================================ -->
     <record id="view_cc_finance_graph" model="ir.ui.view">
         <field name="name">cc.finance.graph</field>
         <field name="model">cc.finance</field>
         <field name="arch" type="xml">
             <graph string="Finance Analytics" type="bar">
-                
-                <!-- Measures -->
                 <field name="amount" type="measure"/>
                 <field name="balance_amount" type="measure"/>
-
-                <!-- Dimensions -->
                 <field name="transaction_type"/>
-                <field name="company_id"/>
                 <field name="payment_type_id"/>
-                <field name="payment_method_id"/>
             </graph>
         </field>
     </record>
-    
-    <!-- Finance Pivot View -->
+
+    <!-- ============================================================
+         FINANCE RECORD: PIVOT VIEW
+    ============================================================ -->
     <record id="view_cc_finance_pivot" model="ir.ui.view">
         <field name="name">cc.finance.pivot</field>
         <field name="model">cc.finance</field>
         <field name="arch" type="xml">
             <pivot string="Finance Pivot">
-                <!-- Measures -->
                 <field name="amount" type="measure"/>
                 <field name="balance_amount" type="measure"/>
-
-                <!-- Rows/Columns -->
                 <field name="date" type="row" interval="month"/>
-                <field name="company_id" type="row"/>
                 <field name="payment_type_id" type="col"/>
                 <field name="transaction_type" type="col"/>
             </pivot>
         </field>
     </record>
-    
-    <!-- Finance Action -->
+
+    <!-- ============================================================
+         FINANCE RECORD: ACTION
+    ============================================================ -->
     <record id="action_cc_finance" model="ir.actions.act_window">
         <field name="name">Finance</field>
         <field name="res_model">cc.finance</field>
         <field name="view_mode">list,form,graph,pivot</field>
+        <field name="search_view_id" ref="view_cc_finance_search"/>
         <field name="context">{'search_default_filter_this_month': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create your first finance record
             </p>
             <p>
-                Track income and expenses for your education center.
+                Track income and expenses backed by the standard accounting ledger.
             </p>
         </field>
     </record>
-    
+
 </odoo>

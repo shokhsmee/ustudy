@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data noupdate="1">
-        
+
         <record id="seq_cc_finance" model="ir.sequence">
-            <field name="name">Finance Sequence</field>
+            <field name="name">Finance Record Sequence</field>
             <field name="code">cc.finance</field>
-            <field name="prefix">FIN</field>
+            <field name="prefix">FIN/%(year)s/</field>
             <field name="padding">5</field>
             <field name="company_id" eval="False"/>
         </record>
-        
+
+        <record id="seq_cc_finance_refund" model="ir.sequence">
+            <field name="name">Refund Request Sequence</field>
+            <field name="code">cc.finance.refund</field>
+            <field name="prefix">REF/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="company_id" eval="False"/>
+        </record>
+
     </data>
 </odoo>

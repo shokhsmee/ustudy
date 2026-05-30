@@ -446,22 +446,122 @@ class EduGroup(models.Model):
         # keep a stable order
         return self.course_id.slide_channel_id.slide_ids.sorted(lambda s: (s.sequence or 0, s.id))
 
-    def action_regenerate_timetable(self):
-        self.ensure_one()
-        self._ensure_end_date()
+    # ------------------------------------------------------------------
+    # Floating-schedule helpers
+    # ------------------------------------------------------------------
+    def _get_weekly_slots(self):
+        """Return the recurring weekly slots used to build the timetable.
 
-        if not self.lesson_days:
-            raise UserError(_("Please select lesson days before generating timetable."))
-        if not self.lesson_room:
-            raise UserError(_("Please select a lesson room before generating timetable."))
+        Each slot is a dict: ``weekday_id``, ``weekday_seq``, ``time_from``,
+        ``time_to``, ``room_id``, ``teacher_id``.
+
+        Source of truth = the floating ``schedule_ids`` lines (so a group can
+        meet at different times on different days). If a group has no schedule
+        lines yet, we fall back to the legacy single-time fields
+        (``lesson_days`` + ``lesson_start``/``lesson_end``) so existing groups
+        keep working unchanged.
+        """
+        self.ensure_one()
+        slots = []
+        active_lines = self.schedule_ids.filtered(lambda s: s.active)
+        if active_lines:
+            for line in active_lines:
+                room = line.room_id or self.lesson_room
+                teacher = line.teacher_id or self.teacher_id
+                slots.append({
+                    "weekday_id": line.weekday_id.id,
+                    "weekday_seq": line.weekday_id.sequence,
+                    "time_from": line.time_from,
+                    "time_to": line.time_to,
+                    "room_id": room.id if room else False,
+                    "teacher_id": teacher.id if teacher else False,
+                })
+        else:
+            for weekday in self.lesson_days:
+                slots.append({
+                    "weekday_id": weekday.id,
+                    "weekday_seq": weekday.sequence,
+                    "time_from": self.lesson_start,
+                    "time_to": self.lesson_end,
+                    "room_id": self.lesson_room.id if self.lesson_room else False,
+                    "teacher_id": self.teacher_id.id if self.teacher_id else False,
+                })
+        return slots
+
+    def _validate_schedule_for_generation(self):
+        """Operational pre-checks for timetable generation.
+
+        These are generator-input guards (not the capacity rule), so a guiding
+        UserError is appropriate here.
+        """
+        self.ensure_one()
+        slots = self._get_weekly_slots()
+        if not slots:
+            raise UserError(_(
+                "Add at least one weekly schedule slot (or legacy lesson days) "
+                "before generating the timetable."
+            ))
         if not self.start_date or not self.end_date:
             raise UserError(_("Please set start and end dates before generating timetable."))
         if self.start_date >= self.end_date:
             raise UserError(_("End date must be after start date."))
-        if not self.lesson_start or not self.lesson_end:
-            raise UserError(_("Please set lesson start and end times."))
-        if self.lesson_start >= self.lesson_end:
-            raise UserError(_("Lesson end time must be after start time."))
+        for slot in slots:
+            if not slot["room_id"]:
+                raise UserError(_(
+                    "Every schedule slot needs a room. Set a room on the slot "
+                    "or a default 'Lesson Room' on the group."
+                ))
+            if not slot["time_from"] or not slot["time_to"] or slot["time_from"] >= slot["time_to"]:
+                raise UserError(_(
+                    "Every schedule slot needs a valid start/end time "
+                    "(end must be after start)."
+                ))
+        return slots
+
+    def _iter_lesson_dates(self, start_from):
+        """Yield ``(date, slot)`` for each lesson between ``start_from`` and
+        ``end_date``, honoring ``lesson_count`` when ``use_lesson_count`` is on.
+
+        Multiple slots can share the same weekday; within a day they are
+        ordered by start time so slide numbering stays chronological.
+        """
+        self.ensure_one()
+        slots_by_day = {}
+        for slot in self._get_weekly_slots():
+            slots_by_day.setdefault(slot["weekday_seq"], []).append(slot)
+        for seq in slots_by_day:
+            slots_by_day[seq].sort(key=lambda s: s["time_from"])
+
+        remaining = self.lesson_count if (self.use_lesson_count and self.lesson_count) else None
+        current_date = start_from
+        while current_date <= self.end_date and (remaining is None or remaining > 0):
+            weekday_seq = current_date.weekday() + 1
+            for slot in slots_by_day.get(weekday_seq, []):
+                if remaining is not None and remaining <= 0:
+                    break
+                yield current_date, slot
+                if remaining is not None:
+                    remaining -= 1
+            current_date += timedelta(days=1)
+
+    def _build_timetable_entry(self, lesson_date, slot, slide_id):
+        """Build a single ``(0, 0, vals)`` command for a timetable entry."""
+        self.ensure_one()
+        return (0, 0, {
+            "group_id": self.id,
+            "weekday_id": slot["weekday_id"],
+            "room_id": slot["room_id"],
+            "start_datetime": self._make_utc_datetime(lesson_date, slot["time_from"]),
+            "end_datetime": self._make_utc_datetime(lesson_date, slot["time_to"]),
+            "slide_id": slide_id,
+            "state": "scheduled",
+            "teacher_id": slot["teacher_id"],
+        })
+
+    def action_regenerate_timetable(self):
+        self.ensure_one()
+        self._ensure_end_date()
+        self._validate_schedule_for_generation()
 
         today = fields.Date.context_today(self)
         regen_from_date = max(today, self.start_date)
@@ -469,78 +569,43 @@ class EduGroup(models.Model):
             raise UserError(_("Nothing to regenerate: today is after the end date."))
 
         regen_from_dt_utc = self._make_utc_datetime(regen_from_date, 0.0)
-
         Timetable = self.env["edu.timetable"]
 
-        future_entries = Timetable.search(
-            [
-                ("group_id", "=", self.id),
-                ("start_datetime", ">=", regen_from_dt_utc),
-                ("state", "!=", "cancelled"),
-            ]
-        )
+        # Drop only future (non-cancelled) entries; keep history intact.
+        future_entries = Timetable.search([
+            ("group_id", "=", self.id),
+            ("start_datetime", ">=", regen_from_dt_utc),
+            ("state", "!=", "cancelled"),
+        ])
         if future_entries:
             future_entries.unlink()
 
         lessons = self._get_channel_lessons()
 
-        past_entries = Timetable.search(
-            [
-                ("group_id", "=", self.id),
-                ("start_datetime", "<", regen_from_dt_utc),
-                ("state", "!=", "cancelled"),
-            ],
-            order="start_datetime asc",
-        )
+        # Resume slide numbering after the slides already used in the past.
+        past_entries = Timetable.search([
+            ("group_id", "=", self.id),
+            ("start_datetime", "<", regen_from_dt_utc),
+            ("state", "!=", "cancelled"),
+        ], order="start_datetime asc")
         slide_start = max((self.start_lesson_number or 1) - 1, 0)
         lesson_index = slide_start + len(past_entries.filtered(lambda r: r.slide_id))
 
-        timetable_entries = []
-        current_date = regen_from_date
-        remaining = self.lesson_count if (self.use_lesson_count and self.lesson_count) else None
+        entries = []
+        for lesson_date, slot in self._iter_lesson_dates(regen_from_date):
+            slide_id = False
+            if lessons and lesson_index < len(lessons):
+                slide_id = lessons[lesson_index].id
+                lesson_index += 1
+            entries.append(self._build_timetable_entry(lesson_date, slot, slide_id))
 
-        while current_date <= self.end_date and (remaining is None or remaining > 0):
-            weekday_num = current_date.weekday()
-            matching_weekday = self.lesson_days.filtered(lambda w: w.sequence == weekday_num + 1)
-
-            if matching_weekday:
-                start_dt_utc = self._make_utc_datetime(current_date, self.lesson_start)
-                end_dt_utc = self._make_utc_datetime(current_date, self.lesson_end)
-
-                slide_id = False
-                if lessons and lesson_index < len(lessons):
-                    slide_id = lessons[lesson_index].id
-                    lesson_index += 1
-
-                vals = {
-                    "group_id": self.id,
-                    "weekday_id": matching_weekday[0].id,
-                    "room_id": self.lesson_room.id,
-                    "start_datetime": start_dt_utc,
-                    "end_datetime": end_dt_utc,
-                    "slide_id": slide_id,
-                    "state": "scheduled",
-                    "teacher_id": self.teacher_id.id if self.teacher_id else False,
-                }
-                timetable_entries.append((0, 0, vals))
-
-                if remaining is not None:
-                    remaining -= 1
-
-            current_date += timedelta(days=1)
-
-        if timetable_entries:
-            self.write({"timetable_ids": timetable_entries})
-            self.env.user.notify_success(
-                message=_(
-                    "%s timetable entries regenerated (from %s)!"
-                ) % (len(timetable_entries), regen_from_date)
-            )
+        if entries:
+            self.write({"timetable_ids": entries})
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
                 "params": {
-                    "message": _("%s timetable entries regenerated (from %s)!", len(timetable_entries), regen_from_date),
+                    "message": _("%s timetable entries regenerated (from %s)!", len(entries), regen_from_date),
                     "type": "success",
                     "sticky": False,
                 },
@@ -551,19 +616,7 @@ class EduGroup(models.Model):
     def action_generate_timetable(self):
         self.ensure_one()
         self._ensure_end_date()
-
-        if not self.lesson_days:
-            raise UserError(_("Please select lesson days before generating timetable."))
-        if not self.lesson_room:
-            raise UserError(_("Please select a lesson room before generating timetable."))
-        if not self.start_date or not self.end_date:
-            raise UserError(_("Please set start and end dates before generating timetable."))
-        if self.start_date >= self.end_date:
-            raise UserError(_("End date must be after start date."))
-        if not self.lesson_start or not self.lesson_end:
-            raise UserError(_("Please set lesson start and end times."))
-        if self.lesson_start >= self.lesson_end:
-            raise UserError(_("Lesson end time must be after start time."))
+        self._validate_schedule_for_generation()
 
         lessons = self._get_channel_lessons()
 
@@ -571,48 +624,22 @@ class EduGroup(models.Model):
         if existing_entries:
             existing_entries.unlink()
 
-        timetable_entries = []
-        current_date = self.start_date
         lesson_index = max((self.start_lesson_number or 1) - 1, 0)
-        remaining = self.lesson_count if (self.use_lesson_count and self.lesson_count) else None
+        entries = []
+        for lesson_date, slot in self._iter_lesson_dates(self.start_date):
+            slide_id = False
+            if lessons and lesson_index < len(lessons):
+                slide_id = lessons[lesson_index].id
+                lesson_index += 1
+            entries.append(self._build_timetable_entry(lesson_date, slot, slide_id))
 
-        while current_date <= self.end_date and (remaining is None or remaining > 0):
-            weekday_num = current_date.weekday()
-            matching_weekday = self.lesson_days.filtered(lambda w: w.sequence == weekday_num + 1)
-
-            if matching_weekday:
-                start_dt_utc = self._make_utc_datetime(current_date, self.lesson_start)
-                end_dt_utc = self._make_utc_datetime(current_date, self.lesson_end)
-
-                slide_id = False
-                if lessons and lesson_index < len(lessons):
-                    slide_id = lessons[lesson_index].id
-                    lesson_index += 1
-
-                vals = {
-                    "group_id": self.id,
-                    "weekday_id": matching_weekday[0].id,
-                    "room_id": self.lesson_room.id,
-                    "start_datetime": start_dt_utc,
-                    "end_datetime": end_dt_utc,
-                    "slide_id": slide_id,
-                    "state": "scheduled",
-                    "teacher_id": self.teacher_id.id if self.teacher_id else False,
-                }
-                timetable_entries.append((0, 0, vals))
-
-                if remaining is not None:
-                    remaining -= 1
-
-            current_date += timedelta(days=1)
-
-        if timetable_entries:
-            self.write({"timetable_ids": timetable_entries})
+        if entries:
+            self.write({"timetable_ids": entries})
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
                 "params": {
-                    "message": _("%s timetable entries generated successfully!", len(timetable_entries)),
+                    "message": _("%s timetable entries generated successfully!", len(entries)),
                     "type": "success",
                     "sticky": False,
                 },

@@ -10,6 +10,8 @@
                 <field name="course_id"/>
                 <field name="teacher_id" widget="many2one_avatar_user"/>
                 <field name="student_count"/>
+                <field name="max_students" optional="show"/>
+                <field name="available_seats" optional="hide" decoration-danger="available_seats &lt; 0"/>
                 <field name="lesson_room" optional="hide"/>
                 <field name="company_id" optional="hide"/>
                 <field name="state" widget="badge" 
@@ -176,7 +178,6 @@
                     
                     
                     <!-- Title -->
-                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <field name="active" invisible="1"/>
                     <field name="timetable_count" invisible="1"/>
                     
@@ -234,11 +235,28 @@
                                    widget="many2many_tags"
                                    options="{'color_field': 'sequence', 'no_create': True}"
                                    placeholder="Select lesson days..."/>
+                            <field name="max_students"/>
+                            <field name="allow_overbooking" widget="boolean_toggle"
+                                   groups="ustudy_group.group_capacity_manager"/>
                         </group>
                     </group>
 
                     <!-- Notebook -->
                     <notebook>
+                        <!-- Schedule Tab -->
+                        <page string="Schedule" name="schedule">
+                            <field name="schedule_ids">
+                                <list editable="bottom" string="Weekly Slots">
+                                    <field name="weekday_id"/>
+                                    <field name="time_from" widget="float_time"/>
+                                    <field name="time_to" widget="float_time"/>
+                                    <field name="duration" readonly="1"/>
+                                    <field name="room_id" optional="show"/>
+                                    <field name="teacher_id" widget="many2one_avatar_user" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+
                         <!-- Students Tab - UPDATED FOR MODULE PAYMENT -->
                         <page string="Students" name="students">
                             <field name="student_line_ids">

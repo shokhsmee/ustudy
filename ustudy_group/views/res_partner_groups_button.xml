@@ -5,18 +5,33 @@
         <field name="inherit_id" ref="ustudy_student.view_student_partner_form"/>
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
-
                 <button name="action_view_groups"
                         type="object"
                         class="oe_stat_button"
                         icon="fa-users"
                         invisible="not is_student or group_count == 0">
-
                     <field name="group_count"
                            widget="statinfo"
-                           string="Guruh"/>
+                           string="Groups"/>
                 </button>
+            </xpath>
 
+            <xpath expr="//notebook" position="inside">
+                <page string="Groups" name="student_groups" invisible="not is_student">
+                    <field name="enrolled_group_ids" readonly="1">
+                        <list string="Enrolled Groups">
+                            <field name="name" decoration-bf="1"/>
+                            <field name="course_id"/>
+                            <field name="teacher_id" widget="many2one_avatar_user"/>
+                            <field name="state" widget="badge"
+                                decoration-success="state == 'running'"
+                                decoration-info="state == 'draft'"
+                                decoration-muted="state == 'done'"
+                                decoration-danger="state == 'cancelled'"/>
+                            <field name="start_date"/>
+                        </list>
+                    </field>
+                </page>
             </xpath>
         </field>
     </record>

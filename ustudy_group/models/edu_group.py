@@ -113,9 +113,68 @@ class EduGroup(models.Model):
         store=False,
     )
 
+    # -----------------------------------------------------------------
+    # Capacity / Soft Overbooking
+    # -----------------------------------------------------------------
+    max_students = fields.Integer(
+        string="Max Students",
+        default=16,
+        tracking=True,
+        help="Soft seat limit for this group (0 = unlimited). It can be "
+             "exceeded by a user holding the 'Capacity Override' right, or "
+             "when 'Allow Overbooking' is enabled on the group.",
+    )
+    allow_overbooking = fields.Boolean(
+        string="Allow Overbooking",
+        tracking=True,
+        help="If enabled, this group may exceed its capacity even without the "
+             "'Capacity Override' right.",
+    )
+    active_student_count = fields.Integer(
+        string="Active Students",
+        compute="_compute_capacity_info",
+        store=False,
+        help="Number of enrollments currently occupying a seat (active/frozen).",
+    )
+    seat_limit = fields.Integer(
+        string="Effective Seat Limit",
+        compute="_compute_capacity_info",
+        store=False,
+        help="Smallest of the group capacity and the assigned room capacities "
+             "(0 = unlimited).",
+    )
+    available_seats = fields.Integer(
+        string="Available Seats",
+        compute="_compute_capacity_info",
+        store=False,
+    )
+    is_over_capacity = fields.Boolean(
+        string="Over Capacity",
+        compute="_compute_capacity_info",
+        store=False,
+    )
+
+    # -----------------------------------------------------------------
+    # Floating schedule (replaces hardcoded single lesson time)
+    # -----------------------------------------------------------------
+    schedule_ids = fields.One2many(
+        "edu.group.schedule",
+        "group_id",
+        string="Weekly Schedule",
+        help="Floating weekly slots. Each line is one weekday + time range, "
+             "e.g. Monday 14:00-15:30 and Wednesday 18:00-19:30.",
+    )
+    schedule_count = fields.Integer(
+        string="Schedule Slots",
+        compute="_compute_schedule_count",
+        store=False,
+    )
+
     lesson_days = fields.Many2many(
         'edu.weekday',
         string='Lesson Days',
+        help="Legacy single-time days. Kept for backward compatibility; the "
+             "floating 'Weekly Schedule' lines take precedence when present.",
     )
 
     lesson_room = fields.Many2one(
@@ -189,6 +248,119 @@ class EduGroup(models.Model):
     def _compute_student_count(self):
         for group in self:
             group.student_count = len(group.student_line_ids)
+
+    # -----------------------------------------------------------------
+    # Capacity / Soft Overbooking logic
+    # -----------------------------------------------------------------
+    # Enrollment states that actually occupy a seat.
+    OCCUPYING_STATES = ("active", "frozen")
+
+    def _occupied_seats(self):
+        """How many enrollments currently take up a seat in this group."""
+        self.ensure_one()
+        return len(
+            self.student_line_ids.filtered(lambda l: l.state in self.OCCUPYING_STATES)
+        )
+
+    def _seat_limit(self):
+        """Return ``(limit, source_label)`` for the binding capacity.
+
+        The effective limit is the *smallest* of the group capacity and the
+        capacity of any room the group uses. ``0`` means "unlimited".
+        """
+        self.ensure_one()
+        candidates = []
+        if self.max_students:
+            candidates.append((self.max_students, _("group capacity")))
+        rooms = self.lesson_room | self.schedule_ids.mapped("room_id")
+        for room in rooms:
+            if room.capacity:
+                candidates.append((room.capacity, _("room '%s'") % room.name))
+        if not candidates:
+            return 0, ""
+        return min(candidates, key=lambda c: c[0])
+
+    @api.depends(
+        "student_line_ids.state",
+        "max_students",
+        "lesson_room.capacity",
+        "schedule_ids.room_id.capacity",
+    )
+    def _compute_capacity_info(self):
+        for group in self:
+            occupied = group._occupied_seats()
+            limit, _source = group._seat_limit()
+            group.active_student_count = occupied
+            group.seat_limit = limit
+            if limit:
+                group.available_seats = limit - occupied
+                group.is_over_capacity = occupied > limit
+            else:
+                group.available_seats = 0
+                group.is_over_capacity = False
+
+    @api.depends("schedule_ids")
+    def _compute_schedule_count(self):
+        for group in self:
+            group.schedule_count = len(group.schedule_ids)
+
+    def _capacity_override_allowed(self):
+        """The escape hatch that makes the capacity rule *soft*.
+
+        Overbooking is permitted when any of the following is true:
+          * we run as superuser (data loading / migrations);
+          * the group explicitly allows overbooking;
+          * the current user holds the managerial 'Capacity Override' right.
+        """
+        self.ensure_one()
+        if self.env.su:
+            return True
+        if self.allow_overbooking:
+            return True
+        return self.env.user.has_group("ustudy_group.group_capacity_manager")
+
+    def _enforce_capacity(self):
+        """Soft capacity enforcement, called whenever enrollments change.
+
+        * Within the limit  -> nothing happens.
+        * Over the limit and authorized -> the enrollment is accepted and an
+          audit note is posted to the group chatter (no error).
+        * Over the limit and NOT authorized -> a guiding, *overridable* error
+          is raised. It is not a permanent hard wall: a manager (or the
+          'Allow Overbooking' flag) can always let it through.
+        """
+        for group in self:
+            limit, source = group._seat_limit()
+            if not limit:
+                continue
+            occupied = group._occupied_seats()
+            if occupied <= limit:
+                continue
+            if group._capacity_override_allowed():
+                group._post_overbooking_note(occupied, limit, source)
+            else:
+                raise ValidationError(_(
+                    "Group '%(group)s' is full: %(count)s / %(limit)s seats "
+                    "used (%(source)s).\n\n"
+                    "This is a soft limit. A user with the 'Capacity Override' "
+                    "right can add extra students, or you can enable "
+                    "'Allow Overbooking' (or raise 'Max Students') on the group.",
+                    group=group.name,
+                    count=occupied,
+                    limit=limit,
+                    source=source,
+                ))
+
+    def _post_overbooking_note(self, occupied, limit, source):
+        self.ensure_one()
+        self.message_post(body=_(
+            "Overbooking allowed: %(count)s / %(limit)s seats used "
+            "(%(source)s). Authorized by %(user)s.",
+            count=occupied,
+            limit=limit,
+            source=source,
+            user=self.env.user.display_name,
+        ))
 
     @api.depends("slide_channel_id", "slide_channel_id.slide_ids")
     def _compute_group_lesson_count(self):
@@ -562,7 +734,18 @@ class EduGroupStudent(models.Model):
                     if start_lesson > 1 and "lessons_in_current_module" not in vals:
                         vals["lessons_in_current_module"] = position_in_module
 
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        # Soft capacity check: never a permanent block, overridable by managers.
+        records.mapped("group_id")._enforce_capacity()
+        return records
+
+    def write(self, vals):
+        res = super().write(vals)
+        # Re-evaluate capacity when a student joins another group or is
+        # (re)activated, since either can push a group over its soft limit.
+        if vals.get("group_id") or "state" in vals:
+            self.mapped("group_id")._enforce_capacity()
+        return res
 
     
     def action_register_module_payment(self):
@@ -675,3 +858,9 @@ class EduGroupStudent(models.Model):
             "Student already exists in this group.",
         )
     ]
+    # NOTE on multi-group enrollment (e.g. "Sky Chess" logic):
+    # This model is a pure junction (link) table between a student
+    # (res.partner) and an edu.group. The uniqueness above is scoped to the
+    # PAIR (group_id, student_id), so the SAME student can be enrolled in any
+    # number of DIFFERENT groups simultaneously. There is intentionally no
+    # constraint limiting a student to a single group.

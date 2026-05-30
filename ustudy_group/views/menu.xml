@@ -21,7 +21,7 @@
 
     <!-- Root menu for Education -->
     <menuitem id="menu_edu_root"
-            name="Guruhlar"
+            name="Обзор"
             sequence="10"
             web_icon="ustudy_group,static/icon.png"/>
 

@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================
+         REFUND REQUEST: FORM VIEW
+    ============================================================ -->
+    <record id="view_cc_finance_refund_form" model="ir.ui.view">
+        <field name="name">cc.finance.refund.form</field>
+        <field name="model">cc.finance.refund</field>
+        <field name="arch" type="xml">
+            <form string="Refund Request">
+                <header>
+                    <button name="action_submit"
+                            string="Submit for Approval"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_approve"
+                            string="Approve"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'pending_approval'"
+                            groups="edu_finance.group_refund_approver"/>
+                    <button name="action_validate"
+                            string="Validate &amp; Post Credit Note"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'approved'"
+                            groups="edu_finance.group_refund_approver"/>
+                    <button name="action_reject"
+                            string="Reject"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'pending_approval'"
+                            groups="edu_finance.group_refund_approver"/>
+                    <button name="action_reset_to_draft"
+                            string="Reset to Draft"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'rejected'"/>
+                    <field name="state"
+                           widget="statusbar"
+                           statusbar_visible="draft,pending_approval,approved,validated"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_credit_note"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-file-text-o"
+                                invisible="not credit_note_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Credit Note</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group string="Refund Details">
+                            <field name="finance_id"
+                                   readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="partner_id" readonly="1"/>
+                            <field name="amount"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"
+                                   readonly="state != 'draft'"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="Original Payment">
+                            <field name="original_amount"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            <field name="already_refunded"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            <field name="max_refundable"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <field name="reason"
+                               placeholder="Explain the reason for this refund (required)..."
+                               readonly="state not in ('draft', 'pending_approval')"/>
+                    </group>
+
+                    <group string="Supporting Documents"
+                           help="At least one document is required before submission (e.g. medical certificate, student request).">
+                        <field name="attachment_ids"
+                               widget="many2many_binary"
+                               readonly="state not in ('draft', 'pending_approval')"/>
+                        <field name="attachment_count" invisible="1"/>
+                    </group>
+
+                    <group string="Rejection"
+                           invisible="state != 'rejected' and state != 'pending_approval'">
+                        <field name="rejection_reason"
+                               placeholder="Provide a reason for rejection..."
+                               readonly="state == 'rejected'"
+                               invisible="state == 'draft'"/>
+                    </group>
+
+                    <notebook>
+                        <page string="Audit Trail" name="audit">
+                            <group>
+                                <group string="Submission">
+                                    <field name="submitted_by_id" readonly="1"/>
+                                    <field name="submitted_date" readonly="1"/>
+                                </group>
+                                <group string="Approval">
+                                    <field name="approved_by_id" readonly="1"/>
+                                    <field name="approved_date" readonly="1"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Validation">
+                                    <field name="validated_by_id" readonly="1"/>
+                                    <field name="validated_date" readonly="1"/>
+                                    <field name="credit_note_id" readonly="1"/>
+                                </group>
+                                <group string="Rejection" invisible="state != 'rejected'">
+                                    <field name="rejected_by_id" readonly="1"/>
+                                    <field name="rejected_date" readonly="1"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         REFUND REQUEST: LIST VIEW
+    ============================================================ -->
+    <record id="view_cc_finance_refund_list" model="ir.ui.view">
+        <field name="name">cc.finance.refund.list</field>
+        <field name="model">cc.finance.refund</field>
+        <field name="arch" type="xml">
+            <list string="Refund Requests"
+                  decoration-info="state == 'draft'"
+                  decoration-warning="state == 'pending_approval'"
+                  decoration-success="state in ('approved', 'validated')"
+                  decoration-muted="state == 'rejected'">
+                <field name="name" decoration-bf="1"/>
+                <field name="finance_id"/>
+                <field name="partner_id"/>
+                <field name="amount" widget="monetary"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="reason" optional="show"/>
+                <field name="submitted_date" optional="show"/>
+                <field name="approved_by_id" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'pending_approval'"
+                       decoration-success="state == 'validated'"
+                       decoration-primary="state == 'approved'"
+                       decoration-danger="state == 'rejected'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         REFUND REQUEST: SEARCH VIEW
+    ============================================================ -->
+    <record id="view_cc_finance_refund_search" model="ir.ui.view">
+        <field name="name">cc.finance.refund.search</field>
+        <field name="model">cc.finance.refund</field>
+        <field name="arch" type="xml">
+            <search string="Search Refunds">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="finance_id"/>
+                <separator/>
+                <filter string="Draft" name="filter_draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="Pending Approval" name="filter_pending"
+                        domain="[('state', '=', 'pending_approval')]"/>
+                <filter string="Approved" name="filter_approved"
+                        domain="[('state', '=', 'approved')]"/>
+                <filter string="Validated" name="filter_validated"
+                        domain="[('state', '=', 'validated')]"/>
+                <filter string="Rejected" name="filter_rejected"
+                        domain="[('state', '=', 'rejected')]"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         REFUND REQUEST: ACTION
+    ============================================================ -->
+    <record id="action_cc_finance_refund" model="ir.actions.act_window">
+        <field name="name">Refund Requests</field>
+        <field name="res_model">cc.finance.refund</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_cc_finance_refund_search"/>
+        <field name="context">{'search_default_filter_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No refund requests yet
+            </p>
+            <p>
+                Refund requests are created from confirmed finance records.
+                They follow an approval workflow before posting a credit note.
+            </p>
+        </field>
+    </record>
+
+</odoo>

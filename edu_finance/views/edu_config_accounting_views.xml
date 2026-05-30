@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================
+         EDU.CONFIG: ACCOUNTING SECTION (inherited extension)
+         Adds income/expense journal + account configuration to the
+         existing Education Configuration form.
+    ============================================================ -->
+    <record id="view_edu_config_form_accounting" model="ir.ui.view">
+        <field name="name">edu.config.form.accounting</field>
+        <field name="model">edu.config</field>
+        <field name="inherit_id" ref="ustudy_group.view_edu_config_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Add Accounting notebook page before the existing Information page -->
+            <xpath expr="//notebook/page[@name='info']" position="before">
+                <page string="Accounting" name="accounting">
+                    <group>
+                        <group string="Journals">
+                            <field name="income_journal_id"
+                                   options="{'no_create': True}"/>
+                            <field name="expense_journal_id"
+                                   options="{'no_create': True}"/>
+                            <field name="refund_journal_id"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group string="Accounts">
+                            <field name="income_account_id"
+                                   options="{'no_create': True}"/>
+                            <field name="expense_account_id"
+                                   options="{'no_create': True}"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Refund Settings">
+                            <field name="refund_auto_validate" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

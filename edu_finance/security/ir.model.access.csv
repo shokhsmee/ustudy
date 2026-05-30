@@ -1,8 +1,13 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_cc_finance_user,cc.finance.user,model_cc_finance,base.group_user,1,1,1,0
 access_cc_finance_manager,cc.finance.manager,model_cc_finance,base.group_system,1,1,1,1
+access_cc_finance_portal,cc.finance.portal,model_cc_finance,base.group_portal,1,0,0,0
 access_cc_payment_method_user,cc.payment.method.user,model_cc_payment_method,base.group_user,1,0,0,0
 access_cc_payment_method_manager,cc.payment.method.manager,model_cc_payment_method,base.group_system,1,1,1,1
 access_cc_payment_type_user,cc.payment.type.user,model_cc_payment_type,base.group_user,1,0,0,0
 access_cc_payment_type_manager,cc.payment.type.manager,model_cc_payment_type,base.group_system,1,1,1,1
-access_cc_finance_portal,cc.finance portal,model_cc_finance,base.group_portal,1,0,0,0
+access_cc_finance_refund_user,cc.finance.refund.user,model_cc_finance_refund,base.group_user,1,1,1,0
+access_cc_finance_refund_manager,cc.finance.refund.manager,model_cc_finance_refund,base.group_system,1,1,1,1
+access_cc_finance_refund_portal,cc.finance.refund.portal,model_cc_finance_refund,base.group_portal,1,0,0,0
+access_payment_gateway_user,payment.gateway.user,model_payment_gateway,base.group_user,1,0,0,0
+access_payment_gateway_manager,payment.gateway.manager,model_payment_gateway,base.group_system,1,1,1,1

@@ -21,3 +21,6 @@ access_edu_module_user,access.edu.module.user,model_edu_module,base.group_user,1
 access_edu_module_manager,access.edu.module.manager,model_edu_module,base.group_system,1,1,1,1
 access_student_lesson_report_user,access.student.lesson.report.user,model_edu_group_student_lesson_report,base.group_user,1,0,0,0
 access_edu_group_add_student_wizard_user,access.edu.group.add.student.wizard.user,model_edu_group_add_student_wizard,base.group_user,1,1,1,1
+
+access_edu_group_schedule_user,access_edu_group_schedule_user,model_edu_group_schedule,base.group_user,1,1,1,1
+access_edu_group_schedule_manager,access_edu_group_schedule_manager,model_edu_group_schedule,base.group_system,1,1,1,1

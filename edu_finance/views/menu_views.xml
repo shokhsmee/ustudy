@@ -1,41 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    
-    <!-- Main Menu -->
+
+    <!-- Root Menu -->
     <menuitem id="menu_finance_root"
               name="To'lovlar"
               sequence="60"
               web_icon="edu_finance,static/description/icon.png"/>
-    
-    <!-- Finance Submenu -->
+
+    <!-- ============================================================
+         FINANCE OPERATIONS
+    ============================================================ -->
     <menuitem id="menu_finance_finance"
               name="Finance"
               parent="menu_finance_root"
               sequence="10"/>
-    
+
     <menuitem id="menu_finance_records"
               name="Finance Records"
               parent="menu_finance_finance"
               action="action_cc_finance"
               sequence="10"/>
-    
-    <!-- Configuration Submenu -->
+
+    <menuitem id="menu_finance_refunds"
+              name="Refund Requests"
+              parent="menu_finance_finance"
+              action="action_cc_finance_refund"
+              sequence="20"/>
+
+    <!-- ============================================================
+         CONFIGURATION
+    ============================================================ -->
     <menuitem id="menu_finance_configuration"
               name="Configuration"
               parent="menu_finance_root"
               sequence="100"
               groups="base.group_system"/>
-    
+
     <menuitem id="menu_payment_methods"
               name="Payment Methods"
               parent="menu_finance_configuration"
               action="action_payment_method"
               sequence="10"/>
-    
+
     <menuitem id="menu_payment_types"
               name="Payment Types"
               parent="menu_finance_configuration"
               action="action_payment_type"
               sequence="20"/>
-    
+
+    <menuitem id="menu_payment_gateways"
+              name="Payment Gateways"
+              parent="menu_finance_configuration"
+              action="action_payment_gateway"
+              sequence="30"/>
+
 </odoo>
