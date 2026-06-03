@@ -224,7 +224,8 @@
                         string="Start Attendance"
                         type="object"
                         class="btn-primary"
-                        invisible="has_attendance or state in ['scheduled','completed', 'cancelled'] or not is_today"/>
+                        invisible="has_attendance or state in ['scheduled','completed', 'cancelled']"/>
+                        <!-- invisible="has_attendance or state in ['scheduled','completed', 'cancelled'] or not is_today"/> -->
                 <button name="action_view_attendance" 
                         string="View Attendance" 
                         type="object" 

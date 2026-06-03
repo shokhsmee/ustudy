@@ -27,7 +27,7 @@
             <field name="group_id"/>
             <field name="slide_id"/>
             <filter name="has_homework" string="Has Homework"
-                    domain="[]" context="{'has_homework_filter': 1}"/>
+                    domain="[('has_homework', '=', True)]"/>
             </search>
         </field>
     </record>

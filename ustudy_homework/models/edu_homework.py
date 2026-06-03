@@ -112,7 +112,7 @@ class EduHomework(models.Model):
             if rec.channel_id:
                 if not rec.pass_mark or rec.pass_mark == 60.0:
                     rec.pass_mark = rec.channel_id.homework_pass_mark or 60.0
-            
+
             if not rec.teacher_id and rec.channel_id:
                 group = self.env["edu.group"].search([
                     ("course_id", "=", rec.channel_id.id),
@@ -126,6 +126,7 @@ class EduHomework(models.Model):
                     if employee:
                         rec.teacher_id = employee.id
 
+        records._sync_timetable_homework_flags()
         return records
 
     def write(self, vals):
@@ -133,6 +134,8 @@ class EduHomework(models.Model):
             slide = self.env['slide.slide'].browse(vals.get('slide_id'))
             if slide and slide.channel_id:
                 vals['channel_id'] = slide.channel_id.id
+
+        slides_before = self.mapped('slide_id') if {'slide_id', 'is_published'} & set(vals) else self.env['slide.slide']
 
         res = super().write(vals)
 
@@ -148,7 +151,36 @@ class EduHomework(models.Model):
                 )
                 if employee:
                     rec.teacher_id = employee.id
+
+        if {'slide_id', 'is_published'} & set(vals):
+            slides_after = self.mapped('slide_id')
+            self._sync_timetable_homework_flags(extra_slides=slides_before | slides_after)
         return res
+
+    def unlink(self):
+        slides = self.mapped('slide_id')
+        res = super().unlink()
+        self.browse()._sync_timetable_homework_flags(extra_slides=slides)
+        return res
+
+    def _sync_timetable_homework_flags(self, extra_slides=None):
+        """Recompute has_homework / homework_id on timetables whose slide matches.
+
+        Stored compute fields on edu.timetable depend only on slide_id, so they
+        don't auto-invalidate when an edu.homework is added/published/removed.
+        This is the explicit invalidation hook."""
+        if 'edu.timetable' not in self.env:
+            return
+        Timetable = self.env['edu.timetable']
+        slides = self.mapped('slide_id') | (extra_slides or self.env['slide.slide'])
+        if not slides:
+            return
+        timetables = Timetable.search([('slide_id', 'in', slides.ids)])
+        if not timetables:
+            return
+        timetables._compute_has_homework()
+        if 'homework_id' in Timetable._fields:
+            timetables._compute_homework_id()
 
     def action_open_marks(self):
         self.ensure_one()

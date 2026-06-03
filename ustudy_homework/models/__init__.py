@@ -5,3 +5,4 @@ from . import edu_homework_submission
 from . import res_partner
 from . import edu_timetable
 from . import edu_student_lesson_report
+from . import edu_group_student

@@ -1,6 +1,83 @@
 <!-- ustudy_group/views/student_views.xml -->
 <odoo>
-    <!-- LIST VIEW OF STUDENTS -->
+    <!--
+        Inherit the Talabalar list view (defined in ustudy_student) and replace
+        its column set with the O'quvchilar layout: Ism · Status · Joriy modul ·
+        O'tilingan darslar · Summasi · O'quvchi balans · Davomati · (Vazifa
+        holati column is added by ustudy_homework inherit).
+
+        Stays at the res.partner level (one row per student) — students in
+        multiple groups still appear once; their group breakdown lives in the
+        "Guruhlar" tab on the form view.
+    -->
+    <record id="view_student_partner_list_inherit" model="ir.ui.view">
+        <field name="name">res.partner.list.student.ustudy_group.inherit</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="ustudy_student.view_student_partner_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="replace">
+                <list string="O'quvchilar" create="1" edit="1" delete="0">
+                    <field name="name" string="Ism"/>
+                    <field name="student_status_summary" string="Status"/>
+                    <field name="current_module_summary" string="Joriy modul"/>
+                    <field name="passed_lessons_total" string="O'tilingan darslar"/>
+                    <field name="passed_lessons_amount_total"
+                           string="O'tilgan darslar summasi"
+                           widget="monetary"/>
+                    <field name="student_balance"
+                           string="O'quvchi balans"
+                           widget="monetary"/>
+                    <field name="davomat_summary" string="Davomati"/>
+                    <!-- "Vazifa holati" column injected by ustudy_homework. -->
+
+                    <!-- Optional, hidden -->
+                    <field name="phone" optional="hide"/>
+                    <field name="email" optional="hide"/>
+                    <field name="state_id" string="Viloyat" optional="hide"/>
+                    <field name="cc_region_id" string="Tuman" optional="hide"/>
+                    <field name="total_courses" string="Kurslar" optional="hide"/>
+                </list>
+            </xpath>
+        </field>
+    </record>
+
+    <!--
+        Add a "Guruhlar" tab to the partner form so a student in 2 groups can
+        see both enrollments and their per-group module/davomat numbers.
+    -->
+    <record id="view_student_partner_form_guruhlar_inherit" model="ir.ui.view">
+        <field name="name">res.partner.form.student.guruhlar.inherit</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="ustudy_student.view_student_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Guruhlar" name="guruhlar"
+                      invisible="not is_student">
+                    <field name="group_student_ids">
+                        <list string="Guruhlar" create="0" edit="0" delete="0">
+                            <field name="group_id" string="Guruh"/>
+                            <field name="state" string="Holat" widget="badge"
+                                   decoration-success="state == 'active'"
+                                   decoration-info="state == 'completed'"
+                                   decoration-warning="state == 'frozen'"
+                                   decoration-danger="state == 'cancelled'"/>
+                            <field name="enrollment_date" string="Qo'shilgan sana"/>
+                            <field name="starting_module_id" string="Boshlangan modul"/>
+                            <field name="current_module_id" string="Joriy modul"/>
+                            <field name="passed_lessons_count" string="O'tilingan darslar"/>
+                            <field name="passed_lessons_amount"
+                                   string="O'tilgan darslar summasi"
+                                   widget="monetary"/>
+                            <field name="davomat_ratio" string="Davomati"/>
+                            <!-- vazifa_ratio column injected by ustudy_homework -->
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- LIST VIEW OF STUDENTS (legacy, unused by menu — kept for back-compat) -->
     <record id="view_student_list" model="ir.ui.view">
         <field name="name">res.partner.student.list</field>
         <field name="model">res.partner</field>

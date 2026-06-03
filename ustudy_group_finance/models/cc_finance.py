@@ -90,7 +90,7 @@ class CCFinance(models.Model):
         ('paid', 'Fully Paid'),
     ], string="Module Status", compute="_compute_module_payment_info", store=False)
 
-    @api.depends("partner_id", "module_id", "amount", "state")
+    @api.depends("partner_id", "module_id", "student_line_id", "amount", "state")
     def _compute_module_payment_info(self):
         payment_type = self.env['cc.payment.type'].search([
             ('code', '=', 'student_module'),
@@ -103,9 +103,9 @@ class CCFinance(models.Model):
         for rec in self:
             already_paid = 0.0
 
-            if rec.partner_id and rec.module_id and payment_type:
+            if rec.partner_id and rec.module_id and payment_type and rec.student_line_id:
                 domain = [
-                    ('partner_id', '=', rec.partner_id.id),
+                    ('student_line_id', '=', rec.student_line_id.id),
                     ('module_id', '=', rec.module_id.id),
                     ('payment_type_id', '=', payment_type.id),
                     ('state', '=', 'confirmed'),

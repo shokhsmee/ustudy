@@ -64,6 +64,10 @@ class EduHomeworkSubmission(models.Model):
 
     pass_mark = fields.Float(related="homework_id.pass_mark", store=True, readonly=True)
 
+    # XP (gamification karma) bookkeeping: award once when the homework is passed.
+    xp_awarded = fields.Boolean(string="XP Awarded", default=False, copy=False, readonly=True)
+    xp_amount = fields.Integer(string="XP Awarded (amount)", default=0, copy=False, readonly=True)
+
     # -------------------------
     # Access
     # -------------------------
@@ -85,6 +89,25 @@ class EduHomeworkSubmission(models.Model):
             return "graded"
         return "graded" if mark >= pass_mark else "failed"
 
+    def _award_xp(self):
+        """Award gamification XP (karma) equal to the mark, once per submission.
+
+        XP = the mark. Granted only when the submission is passed ('graded')
+        and never granted twice, even if the submission is re-graded later."""
+        for rec in self:
+            if rec.xp_awarded or rec.state != "graded":
+                continue
+            user = rec.user_id
+            if not user:
+                continue
+            points = int(round(rec.mark or 0.0))
+            if points <= 0:
+                continue
+            reason = _("Homework passed: %s") % (rec.homework_id.name or rec.homework_id.id)
+            user.sudo()._add_karma(points, rec.homework_id, reason)
+            rec.xp_awarded = True
+            rec.xp_amount = points
+
     # -------------------------
     # Create / Write
     # -------------------------
@@ -95,7 +118,9 @@ class EduHomeworkSubmission(models.Model):
                 homework = self.env["edu.homework"].browse(vals.get("homework_id"))
                 pass_mark = homework.pass_mark if homework else False
                 vals["state"] = self._state_from_mark(vals.get("mark"), pass_mark)
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        records._award_xp()
+        return records
 
     def write(self, vals):
         if "mark" in vals:
@@ -105,6 +130,10 @@ class EduHomeworkSubmission(models.Model):
                 new_state = self._state_from_mark(mark, pass_mark)
                 update_vals = dict(vals, state=new_state)
                 super(EduHomeworkSubmission, rec).write(update_vals)
+
+                # Award XP (karma) once when the submission becomes passed
+                if new_state == "graded":
+                    rec._award_xp()
 
                 # Auto-complete slide when homework passed
                 if new_state == "graded" and rec.homework_id.slide_id:

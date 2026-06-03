@@ -135,11 +135,39 @@ class EduGroup(models.Model):
         store=False
     )
 
+    is_at_module_start = fields.Boolean(
+        string="At Module Boundary",
+        compute="_compute_module_boundary",
+        store=False,
+        help="True when the group is positioned at the 1st lesson of any module "
+             "(i.e. (start_lesson_number - 1 + started_lessons_count) is a multiple of lessons_per_module). "
+             "Used to restrict mid-group student enrollment to clean module boundaries.",
+    )
+
+    lessons_until_next_module = fields.Integer(
+        string="Lessons Until Next Module",
+        compute="_compute_module_boundary",
+        store=False,
+        help="How many more lessons must be completed before the group reaches the next module boundary. "
+             "0 means the group is currently AT a boundary (next lesson starts a new module).",
+    )
+
     @api.depends("timetable_ids.state")
     def _compute_started_lessons_count(self):
         for rec in self:
             started = rec.timetable_ids.filtered(lambda t: t.state in ["in_progress", "completed"])
             rec.started_lessons_count = len(started)
+
+    @api.depends("timetable_ids.state", "start_lesson_number")
+    def _compute_module_boundary(self):
+        config = self.env["edu.config"].get_config()
+        lpm = config.lessons_per_module or 12
+        for rec in self:
+            started = len(rec.timetable_ids.filtered(lambda t: t.state in ["in_progress", "completed"]))
+            course_offset = (rec.start_lesson_number or 1) - 1 + started
+            position = course_offset % lpm
+            rec.is_at_module_start = (position == 0)
+            rec.lessons_until_next_module = 0 if position == 0 else (lpm - position)
 
 
     @api.onchange("start_date", "lesson_days", "lesson_count", "use_lesson_count")
@@ -190,13 +218,17 @@ class EduGroup(models.Model):
         for group in self:
             group.student_count = len(group.student_line_ids)
 
-    @api.depends("slide_channel_id", "slide_channel_id.slide_ids")
+    @api.depends("timetable_ids.slide_id", "timetable_ids.state")
     def _compute_group_lesson_count(self):
+        """Darslar = lessons actually scheduled for this group: distinct slides
+        carried by its active (non-cancelled) timetable entries. Because the
+        timetable is generated from start_lesson_number ("boshlangan dars"),
+        this naturally counts only lessons from that starting lesson onward."""
         for group in self:
-            if group.slide_channel_id:
-                group.course_count = len(group.slide_channel_id.slide_ids)
-            else:
-                group.course_count = 0
+            active = group.timetable_ids.filtered(
+                lambda t: t.slide_id and t.state != "cancelled"
+            )
+            group.course_count = len(active.mapped("slide_id"))
 
     def action_view_students(self):
         """Open students in this group"""
@@ -211,15 +243,20 @@ class EduGroup(models.Model):
         }
 
     def action_view_lessons(self):
-        """Open lessons for this group's course"""
+        """Open the lessons actually scheduled for this group: the slides carried
+        by its active (non-cancelled) timetable entries, from boshlangan dars on.
+        Matches the course_count ("Darslar") stat."""
         self.ensure_one()
         if self.slide_channel_id:
+            slide_ids = self.timetable_ids.filtered(
+                lambda t: t.slide_id and t.state != "cancelled"
+            ).mapped("slide_id").ids
             return {
                 'name': _('Course Lessons - %s', self.slide_channel_id.name),
                 'type': 'ir.actions.act_window',
                 'res_model': 'slide.slide',
                 'view_mode': 'list,form',
-                'domain': [('channel_id', '=', self.slide_channel_id.id)],
+                'domain': [('id', 'in', slide_ids)],
                 'context': {'default_channel_id': self.slide_channel_id.id},
             }
         else:
@@ -234,8 +271,19 @@ class EduGroup(models.Model):
             }
 
     def action_add_student_midgroup(self):
-        """Open wizard to add a student to this running group from a specific date"""
+        """Open wizard to add a student to this running group from a specific date.
+
+        Only allowed when the group is positioned at a module boundary — i.e.
+        the next lesson starts a fresh module. This keeps finance clean
+        (a mid-joiner always begins paying from a whole module, never half a one).
+        """
         self.ensure_one()
+        if not self.is_at_module_start:
+            raise UserError(_(
+                "Bu guruhga hozir yangi o'quvchi qo'shib bo'lmaydi. "
+                "Guruh modul boshlanishida bo'lishi kerak. "
+                "Keyingi modulgacha %s ta dars qoldi."
+            ) % self.lessons_until_next_module)
         return {
             'name': _("Guruhga O'quvchi Qo'shish"),
             'type': 'ir.actions.act_window',
@@ -380,6 +428,21 @@ class EduGroupStudent(models.Model):
         ('paid', 'Fully Paid'),
         ('overdue', 'Payment Overdue'),
     ], string="Payment Status", compute="_compute_payment_status", store=True)
+
+    debt_status = fields.Selection(
+        [
+            ('paid', "To'langan"),
+            ('debtor', "Qarzdor"),
+        ],
+        string="To'lov holati",
+        compute="_compute_debt_status",
+        store=False,
+    )
+
+    @api.depends("debt_lessons_count", "paid_lessons_count")
+    def _compute_debt_status(self):
+        for rec in self:
+            rec.debt_status = 'debtor' if rec.debt_lessons_count > rec.paid_lessons_count else 'paid'
     
     state = fields.Selection(
         [
@@ -395,6 +458,15 @@ class EduGroupStudent(models.Model):
         string="Enrollment Date",
         default=fields.Date.today,
         help="Date when student joined this group. Used to calculate attendance and module from that day.",
+    )
+
+    starting_module_id = fields.Many2one(
+        "edu.module",
+        string="Starting Module",
+        readonly=True,
+        copy=False,
+        help="Module the student started from when they joined this group. "
+             "Finance and lesson history before this module are hidden for mid-joiners.",
     )
     
     
@@ -415,6 +487,53 @@ class EduGroupStudent(models.Model):
         compute="_compute_attended_lessons_count",
         store=False
     )
+
+    # ---------------------------------------------------------------
+    # New display fields for the group form's Students table layout.
+    # See edu_group_views.xml (Students tab inside the group form).
+    # ---------------------------------------------------------------
+    passed_lessons_count = fields.Integer(
+        string="O'tilingan darslar",
+        compute="_compute_passed_lessons",
+        store=False,
+        help="Number of timetables in this group with state in_progress/completed "
+             "since the student's enrollment_date.",
+    )
+
+    passed_lessons_amount = fields.Float(
+        string="O'tilgan darslar summasi",
+        compute="_compute_passed_lessons",
+        store=False,
+        help="passed_lessons_count × per-lesson price "
+             "(module_price / lessons_per_module). The total cost of the lessons "
+             "that have already happened for this student.",
+    )
+
+    debt_lessons_count = fields.Float(
+        string="Qarz darslar",
+        compute="_compute_debt_lessons",
+        store=False,
+        help="Difference between passed lessons and paid lessons, i.e. how many "
+                "lessons the student owes payment for.",
+    )
+    
+    
+    student_balance = fields.Float(
+        string="O'quvchi balans",
+        compute="_compute_student_balance",
+        store=False,
+        readonly=True,
+        help="Per-enrollment balance: sum of confirmed income payments minus "
+             "expenses on cc.finance for this student_line_id. Scoped to this "
+             "group only — does not aggregate across the student's other groups.",
+    )
+
+    davomat_ratio = fields.Char(
+        string="Davomati",
+        compute="_compute_davomat_ratio",
+        store=False,
+        help="Attendance since enrollment as 'present/passed'.",
+    )
     
     
     def _compute_paid_amount_total(self):
@@ -422,20 +541,40 @@ class EduGroupStudent(models.Model):
             ('code', '=', 'student_module'),
             ('type_category', '=', 'student')
         ], limit=1)
+        has_link = "student_line_id" in self.env["cc.finance"]._fields
 
         for rec in self:
-            if not payment_type:
+            if not payment_type or not has_link or not rec.id:
                 rec.paid_amount_total = 0.0
                 continue
 
-            payments = self.env["cc.finance"].search([
-                ("partner_id", "=", rec.student_id.id),
+            domain = [
+                ("student_line_id", "=", rec.id),
                 ("payment_type_id", "=", payment_type.id),
                 ("transaction_type", "=", "income"),
                 ("state", "=", "confirmed"),
-            ])
+            ]
+            # Hide past-module payments for mid-joiners (shouldn't normally exist,
+            # but excluded for safety so the per-lesson conversion stays consistent).
+            domain += rec._get_module_scope_domain()
 
+            payments = self.env["cc.finance"].search(domain)
             rec.paid_amount_total = sum(payments.mapped("amount"))
+
+    def _get_module_scope_domain(self):
+        """Return a cc.finance domain fragment limiting records to modules at or after
+        the student's starting_module_id. Used everywhere finance is shown / summed
+        for this student line so past modules don't appear and aren't billed."""
+        self.ensure_one()
+        if not self.starting_module_id:
+            return []
+        # Allow records with no module_id (general payments) and any record whose
+        # module sequence is >= the student's starting module sequence.
+        return [
+            "|",
+            ("module_id", "=", False),
+            ("module_id.sequence", ">=", self.starting_module_id.sequence),
+        ]
     
     
     def _compute_paid_lessons_count(self):
@@ -468,6 +607,60 @@ class EduGroupStudent(models.Model):
                 domain.append(("attendance_id.attendance_date", ">=", rec.enrollment_date))
             rec.attended_lessons_count = AttendanceLine.search_count(domain)
 
+    def _compute_passed_lessons(self):
+        Timetable = self.env["edu.timetable"]
+        config = self.env["edu.config"].get_config()
+        lpm = config.lessons_per_module or 12
+        per_lesson = (config.module_price / lpm) if lpm else 0.0
+
+        for rec in self:
+            if not rec.group_id:
+                rec.passed_lessons_count = 0
+                rec.passed_lessons_amount = 0.0
+                continue
+
+            domain = [
+                ("group_id", "=", rec.group_id.id),
+                ("state", "in", ["in_progress", "completed"]),
+            ]
+            if rec.enrollment_date:
+                domain.append(("start_date", ">=", rec.enrollment_date))
+
+            count = Timetable.search_count(domain)
+            rec.passed_lessons_count = count
+            rec.passed_lessons_amount = count * per_lesson
+
+
+    def _compute_debt_lessons(self):
+        for data in self:
+            data.debt_lessons_count = max(0, data.passed_lessons_count - data.paid_lessons_count)
+
+    def _compute_davomat_ratio(self):
+        for rec in self:
+            passed = rec.passed_lessons_count
+            attended = rec.attended_lessons_count
+            rec.davomat_ratio = f"{attended}/{passed}"
+
+    def _compute_student_balance(self):
+        # student_line_id was added on cc.finance by ustudy_group_finance. Guard so
+        # this still computes (as 0) when that module isn't installed.
+        has_link = "student_line_id" in self.env["cc.finance"]._fields
+        for rec in self:
+            if not has_link or not rec.id:
+                rec.student_balance = 0.0
+                continue
+            payments = self.env["cc.finance"].search([
+                ("student_line_id", "=", rec.id),
+                ("state", "=", "confirmed"),
+            ])
+            balance = 0.0
+            for p in payments:
+                if p.transaction_type == "income":
+                    balance += p.amount
+                elif p.transaction_type == "expense":
+                    balance -= p.amount
+            rec.student_balance = balance
+
     
     finance_count = fields.Integer(
         compute="_compute_finance_count",
@@ -479,11 +672,16 @@ class EduGroupStudent(models.Model):
             ('code', '=', 'student_module'),
             ('type_category', '=', 'student')
         ], limit=1)
+        has_link = "student_line_id" in self.env["cc.finance"]._fields
 
         for rec in self:
-            domain = [("partner_id", "=", rec.student_id.id)]
+            if not has_link or not rec.id:
+                rec.finance_count = 0
+                continue
+            domain = [("student_line_id", "=", rec.id)]
             if payment_type:
                 domain.append(("payment_type_id", "=", payment_type.id))
+            domain += rec._get_module_scope_domain()
 
             rec.finance_count = self.env["cc.finance"].search_count(domain)
 
@@ -496,10 +694,15 @@ class EduGroupStudent(models.Model):
             ('type_category', '=', 'student')
         ], limit=1)
 
-        domain = [("partner_id", "=", self.student_id.id)]
+        has_link = "student_line_id" in self.env["cc.finance"]._fields
+        if has_link:
+            domain = [("student_line_id", "=", self.id)]
+        else:
+            domain = [("partner_id", "=", self.student_id.id)]
         if payment_type:
             domain.append(("payment_type_id", "=", payment_type.id))
-            
+        domain += self._get_module_scope_domain()
+
         view_id = self.env.ref("ustudy_group.view_cc_finance_student_module_list").id
 
         return {
@@ -511,6 +714,7 @@ class EduGroupStudent(models.Model):
             "domain": domain,
             "context": {
                 "default_partner_id": self.student_id.id,
+                "default_student_line_id": self.id,
             }
         }
 
@@ -562,7 +766,30 @@ class EduGroupStudent(models.Model):
                     if start_lesson > 1 and "lessons_in_current_module" not in vals:
                         vals["lessons_in_current_module"] = position_in_module
 
-        return super().create(vals_list)
+            # Always snapshot starting_module_id at create-time so finance/views can
+            # filter past modules out for mid-joiners.
+            if not vals.get("starting_module_id") and vals.get("current_module_id"):
+                vals["starting_module_id"] = vals["current_module_id"]
+
+        records = super().create(vals_list)
+        records._enroll_in_course()
+        return records
+
+    def _enroll_in_course(self):
+        """Auto-enroll the student into the group's eLearning course (slide.channel).
+
+        Triggered whenever a student is added to a group (form or wizards both
+        funnel through create). Idempotent: _action_add_members re-uses/unarchives
+        any existing membership instead of creating a duplicate."""
+        for rec in self:
+            channel = rec.group_id.slide_channel_id
+            partner = rec.student_id
+            if not channel or not partner:
+                continue
+            memberships = channel.sudo()._action_add_members(partner)
+            # Link the membership back to this group (only if not already tied to one).
+            for cp in memberships.filtered(lambda m: not m.edu_group_id):
+                cp.edu_group_id = rec.group_id.id
 
     
     def action_register_module_payment(self):

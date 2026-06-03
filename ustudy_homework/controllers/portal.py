@@ -9,9 +9,10 @@ class CustomerPortalLessons(CustomerPortal):
         values = super()._prepare_portal_layout_values()
 
         partner = request.env.user.partner_id
-        values["lesson_report_count"] = request.env["edu.student.lesson.report"].sudo().search_count([
-            ("student_id", "=", partner.id),
-        ])
+        LessonReport = request.env["edu.student.lesson.report"].sudo()
+        values["lesson_report_count"] = LessonReport.search_count(
+            LessonReport.filter_guruhga_qoshilgan(student_id=partner.id)
+        )
 
         return values
     
@@ -27,7 +28,7 @@ class CustomerPortalLessons(CustomerPortal):
         partner = request.env.user.partner_id
         LessonReport = request.env["edu.student.lesson.report"].sudo()
 
-        domain = [("student_id", "=", partner.id)]
+        domain = LessonReport.filter_guruhga_qoshilgan(student_id=partner.id)
 
         total = LessonReport.search_count(domain)
 
@@ -61,7 +62,7 @@ class CustomerPortalLessons(CustomerPortal):
         LessonReport = request.env["edu.student.lesson.report"].sudo()
 
         records = LessonReport.search(
-            [("student_id", "=", partner.id)],
+            LessonReport.filter_guruhga_qoshilgan(student_id=partner.id),
             order="start_datetime asc, id asc"
         )
 

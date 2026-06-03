@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_slide_channel_form_elearning_core" model="ir.ui.view">
+        <field name="name">slide.channel.form.elearning.core</field>
+        <field name="model">slide.channel</field>
+        <field name="inherit_id" ref="website_slides.view_slide_channel_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_publish_all_slides"
+                        string="Barcha darslarni nashr qilish"
+                        type="object"
+                        class="btn-primary"
+                        confirm="Ushbu kursdagi nashr qilinmagan barcha darslar nashr qilinsinmi?"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

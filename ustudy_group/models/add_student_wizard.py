@@ -40,6 +40,16 @@ class EduGroupAddStudentWizard(models.TransientModel):
         help="How many lessons of the starting module were completed before this student joins",
     )
 
+    # Mirror of group fields so the wizard view can show a clear status
+    is_at_module_start = fields.Boolean(
+        related="group_id.is_at_module_start",
+        readonly=True,
+    )
+    lessons_until_next_module = fields.Integer(
+        related="group_id.lessons_until_next_module",
+        readonly=True,
+    )
+
     @api.depends("group_id", "enrollment_date")
     def _compute_module_info(self):
         for rec in self:
@@ -77,6 +87,16 @@ class EduGroupAddStudentWizard(models.TransientModel):
     def action_confirm(self):
         self.ensure_one()
 
+        # Server-side boundary guard — the UI hides the button when the group
+        # isn't at a module boundary, but a hand-crafted action call could still
+        # land here. Block it.
+        if not self.group_id.is_at_module_start:
+            raise UserError(_(
+                "Bu guruhga hozir o'quvchi qo'shib bo'lmaydi. "
+                "Guruh modul boshlanishida bo'lishi kerak. "
+                "Keyingi modulgacha qolgan darslar: %s"
+            ) % self.group_id.lessons_until_next_module)
+
         existing = self.env["edu.group.student"].search([
             ("group_id", "=", self.group_id.id),
             ("student_id", "=", self.student_id.id),
@@ -91,6 +111,7 @@ class EduGroupAddStudentWizard(models.TransientModel):
             "student_id": self.student_id.id,
             "enrollment_date": self.enrollment_date,
             "current_module_id": self.starting_module_id.id if self.starting_module_id else False,
+            "starting_module_id": self.starting_module_id.id if self.starting_module_id else False,
             "lessons_in_current_module": 0,
             "state": "active",
         })

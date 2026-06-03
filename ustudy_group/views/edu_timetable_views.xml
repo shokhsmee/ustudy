@@ -61,7 +61,8 @@
                             string="Start Lesson"
                             type="object"
                             class="btn-primary"
-                            invisible="state != 'scheduled' or not is_today"/>
+                            invisible = "state != 'scheduled'"/>
+                            <!-- invisible="state != 'scheduled' or not is_today"/> -->
                     <button name="action_mark_completed"
                             string="Complete"
                             type="object"

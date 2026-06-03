@@ -57,6 +57,10 @@ class EduStudentLessonReport(models.Model):
 
     def init(self):
         tools.drop_view_if_exists(self.env.cr, self._table)
+        # filter_guruhga_qoshilgan: a student only sees lessons/homework dated
+        # on or after their enrollment_date in the group. Students enrolled at
+        # the group's start (enrollment_date NULL or before any timetable) see
+        # everything by default.
         self.env.cr.execute(f"""
             CREATE OR REPLACE VIEW {self._table} AS (
                 SELECT
@@ -79,6 +83,10 @@ class EduStudentLessonReport(models.Model):
                     sub.mark AS mark
                 FROM edu_group_student gs
                 JOIN edu_timetable tt ON tt.group_id = gs.group_id
+                    AND (
+                        gs.enrollment_date IS NULL
+                        OR tt.start_datetime >= gs.enrollment_date::timestamp
+                    )
                 LEFT JOIN edu_attendance att
                     ON att.timetable_id = tt.id AND att.state = 'confirmed'
                 LEFT JOIN edu_attendance_line al
@@ -89,6 +97,26 @@ class EduStudentLessonReport(models.Model):
                     ON sub.homework_id = hw.id AND sub.student_id = gs.student_id
             )
         """)
+
+    @api.model
+    def filter_guruhga_qoshilgan(self, domain=None, student_id=None):
+        """Return a domain scoped to a single student's lesson report rows.
+
+        The SQL view itself already excludes lessons dated before each student's
+        enrollment_date (see init() — the join condition enforces it). So all
+        this helper has to do is anchor the search to the right student. It
+        exists as a named entry point so callers (controllers, dashboards) can
+        rely on a single canonical way to filter "lessons since the student
+        joined the group" — matching the requested method name."""
+        domain = list(domain or [])
+        if student_id:
+            partner_id = student_id
+        else:
+            partner = self.env.user.partner_id
+            partner_id = partner.id if partner else False
+        if not partner_id:
+            return domain
+        return domain + [("student_id", "=", partner_id)]
 
 
     @api.model

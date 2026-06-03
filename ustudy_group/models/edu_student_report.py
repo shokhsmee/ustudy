@@ -81,6 +81,10 @@ class EduStudentLessonReport(models.Model):
                 JOIN edu_group_student gs
                     ON gs.group_id = tt.group_id
                     AND gs.state != 'cancelled'
+                    AND (
+                        gs.enrollment_date IS NULL
+                        OR tt.start_datetime >= gs.enrollment_date::timestamp
+                    )
 
                 JOIN res_partner rp
                     ON rp.id = gs.student_id

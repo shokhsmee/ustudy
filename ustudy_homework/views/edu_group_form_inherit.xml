@@ -1,0 +1,57 @@
+<odoo>
+    <!--
+        Inject the "Vazifa holati" column next to "Davomati" in the group form's
+        Students tab. Defined here (in ustudy_homework) because the column comes
+        from the edu.group.student inherit that adds vazifa_ratio.
+    -->
+    <record id="view_edu_group_form_vazifa_inherit" model="ir.ui.view">
+        <field name="name">edu.group.form.vazifa.inherit</field>
+        <field name="model">edu.group</field>
+        <field name="inherit_id" ref="ustudy_group.view_edu_group_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='students']//field[@name='davomat_ratio']" position="after">
+                <field name="vazifa_ratio" string="Vazifa holati"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Same injection for the standalone students list (Talabalar ro'yxati menu). -->
+    <record id="view_edu_group_student_list_vazifa_inherit" model="ir.ui.view">
+        <field name="name">edu.group.student.list.vazifa.inherit</field>
+        <field name="model">edu.group.student</field>
+        <field name="inherit_id" ref="ustudy_group.view_edu_group_student_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='davomat_ratio']" position="after">
+                <field name="vazifa_ratio" string="Vazifa holati"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!--
+        Inject "Vazifa holati" (ops_ratio) into the partner-level Talabalar
+        list. ops_ratio is defined in ustudy_homework/models/res_partner.py
+        and aggregates across all enrollments via the SQL lesson report.
+    -->
+    <record id="view_student_partner_list_vazifa_inherit" model="ir.ui.view">
+        <field name="name">res.partner.list.student.vazifa.inherit</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="ustudy_group.view_student_partner_list_inherit"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='davomat_summary']" position="after">
+                <field name="ops_ratio" string="Vazifa holati"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- And inject "Vazifa holati" into the Guruhlar tab on the partner form. -->
+    <record id="view_student_partner_form_guruhlar_vazifa_inherit" model="ir.ui.view">
+        <field name="name">res.partner.form.student.guruhlar.vazifa.inherit</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="ustudy_group.view_student_partner_form_guruhlar_inherit"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='guruhlar']//field[@name='davomat_ratio']" position="after">
+                <field name="vazifa_ratio" string="Vazifa holati"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

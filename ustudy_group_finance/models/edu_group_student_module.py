@@ -83,9 +83,9 @@ class EduGroupStudent(models.Model):
         if not payment_type:
             return 0.0
 
-        # Sum of confirmed payments for the current module
+        # Sum of confirmed payments for the current module on THIS enrollment only
         current_payments = self.env['cc.finance'].search([
-            ('partner_id', '=', self.student_id.id),
+            ('student_line_id', '=', self.id),
             ('module_id', '=', self.current_module_id.id),
             ('payment_type_id', '=', payment_type.id),
             ('state', '=', 'confirmed'),
@@ -94,9 +94,9 @@ class EduGroupStudent(models.Model):
         current_total = sum(current_payments.mapped('amount'))
         overpayment = max(0.0, current_total - module_price)
 
-        # Explicit prepayments for the next module
+        # Explicit prepayments for the next module on THIS enrollment only
         next_payments = self.env['cc.finance'].search([
-            ('partner_id', '=', self.student_id.id),
+            ('student_line_id', '=', self.id),
             ('module_id', '=', next_module.id),
             ('payment_type_id', '=', payment_type.id),
             ('state', '=', 'confirmed'),

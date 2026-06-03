@@ -4,6 +4,20 @@
         <field name="model">edu.group.add.student.wizard</field>
         <field name="arch" type="xml">
             <form string="Guruhga O'quvchi Qo'shish">
+                <field name="is_at_module_start" invisible="1"/>
+                <field name="lessons_until_next_module" invisible="1"/>
+
+                <div class="alert alert-warning mb-2"
+                     role="alert"
+                     invisible="is_at_module_start">
+                    <i class="fa fa-exclamation-triangle me-2" title="Warning" role="img" aria-label="Warning"/>
+                    <strong>Diqqat!</strong> Bu guruh hozir modul o'rtasida.
+                    Yangi o'quvchini faqat modul boshlanishida qo'shish mumkin.
+                    Keyingi modulgacha
+                    <field name="lessons_until_next_module" class="oe_inline fw-bold" readonly="1" nolabel="1"/>
+                    ta dars qoldi.
+                </div>
+
                 <group>
                     <group string="O'quvchi ma'lumotlari">
                         <field name="group_id" readonly="1"/>
@@ -22,7 +36,8 @@
                     <button name="action_confirm"
                             string="Guruhga qo'shish"
                             type="object"
-                            class="btn-primary"/>
+                            class="btn-primary"
+                            invisible="not is_at_module_start"/>
                     <button string="Bekor qilish"
                             class="btn-secondary"
                             special="cancel"/>

@@ -10,6 +10,60 @@
             <div class="container mt-4">
                 <h3 class="mb-4">Mening Hisobotlarim</h3>
 
+                <!-- Per-group debt / lessons summary, scoped from enrollment date -->
+                <t t-if="group_summaries">
+                    <h5 class="mb-3">Guruhlar bo‘yicha qarzdorlik</h5>
+                    <div class="row g-3 mb-4">
+                        <t t-foreach="group_summaries" t-as="g">
+                            <div class="col-md-6 col-lg-4">
+                                <div class="card h-100 shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="card-title fw-bold mb-1">
+                                            <span t-esc="g['group_name']"/>
+                                        </h6>
+                                        <div class="text-muted small mb-2">
+                                            <span t-esc="g['course_name']"/>
+                                        </div>
+                                        <t t-if="g['starting_module']">
+                                            <div class="small">
+                                                <span class="text-muted">Boshlangan modul:</span>
+                                                <span class="fw-semibold" t-esc="g['starting_module']"/>
+                                            </div>
+                                        </t>
+                                        <t t-if="g['enrollment_date']">
+                                            <div class="small mb-2">
+                                                <span class="text-muted">Qo‘shilgan sana:</span>
+                                                <span class="fw-semibold" t-esc="g['enrollment_date']"/>
+                                            </div>
+                                        </t>
+                                        <div class="d-flex justify-content-between small">
+                                            <span class="text-muted">O‘tilgan darslar:</span>
+                                            <span t-esc="g['passed_lessons']"/>
+                                        </div>
+                                        <div class="d-flex justify-content-between small">
+                                            <span class="text-muted">To‘langan darslar:</span>
+                                            <span t-esc="g['paid_lessons']"/>
+                                        </div>
+                                        <div class="d-flex justify-content-between small">
+                                            <span class="text-muted">Qarz darslar:</span>
+                                            <span t-esc="g['debt_lessons']"/>
+                                        </div>
+                                        <hr class="my-2"/>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="text-muted small">Qarz summasi:</span>
+                                            <span t-attf-class="badge fs-6 #{'bg-danger' if g['debt_amount'] &gt; 0 else 'bg-success'}">
+                                                <span t-esc="g['debt_amount']"
+                                                      t-options="{'widget': 'monetary', 'display_currency': currency}"/>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+                </t>
+
+                <h5 class="mb-3">To‘lovlar tarixi</h5>
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>

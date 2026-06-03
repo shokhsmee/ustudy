@@ -1,4 +1,4 @@
-from odoo import api, fields, models, _
+from odoo import api, fields, models, tools, _
 from odoo.exceptions import UserError, ValidationError
 from datetime import datetime, timedelta, time
 import pytz
@@ -8,6 +8,20 @@ class EduTimetable(models.Model):
     _name = "edu.timetable"
     _description = "Education Timetable"
     _order = "start_datetime"
+
+    def init(self):
+        # Prevent duplicate lessons: a group can have at most one non-cancelled
+        # timetable per start time. Partial (excludes cancelled) so a cancelled
+        # lesson can coexist with its rescheduled replacement at the same slot.
+        # A plain _sql_constraints unique can't express the WHERE clause.
+        tools.create_index(
+            self.env.cr,
+            "edu_timetable_group_start_active_uniq",
+            self._table,
+            ["group_id", "start_datetime"],
+            unique=True,
+            where="state <> 'cancelled'",
+        )
 
     name = fields.Char(string="Lesson Title", compute="_compute_name", store=True)
 
