@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tools.float_utils import float_compare
+
+from odoo.addons.ustudy_group.models.edu_group import edu_admin_locked
 
 
 class CCFinance(models.Model):
@@ -192,6 +194,14 @@ class CCFinance(models.Model):
     # ---------------------------------------------------
     @api.model_create_multi
     def create(self, vals_list):
+        # TZ (Administrator roli): payment records are kassa-only. The base
+        # ACL gives every internal user create/write on cc.finance, so the
+        # Administrator group is locked out again at method level.
+        if edu_admin_locked(self.env):
+            raise AccessError(_(
+                "Administrator to'lov yozuvlarini kirita olmaydi. "
+                "Bu kassa vazifasi."
+            ))
 
         for vals in vals_list:
 
@@ -216,6 +226,27 @@ class CCFinance(models.Model):
                     vals["module_id"] = line.current_module_id.id
 
         return super(CCFinance, self).create(vals_list)
+
+    def write(self, vals):
+        # TZ: the Administrator cannot edit payments at all — in particular
+        # no back-dating of payment dates and no state manipulation.
+        if edu_admin_locked(self.env):
+            raise AccessError(_(
+                "Administrator to'lov yozuvlarini o'zgartira olmaydi. "
+                "Bu kassa vazifasi."
+            ))
+        return super().write(vals)
+
+    def unlink(self):
+        # TZ: "O'chirish — Qat'iyan Yo'q". The ACL already denies unlink to
+        # non-system users; this guard keeps it that way even if a broader
+        # ACL ever gets added.
+        if edu_admin_locked(self.env):
+            raise AccessError(_(
+                "Administrator to'lov yozuvlarini o'chira olmaydi — "
+                "qat'iyan taqiqlangan."
+            ))
+        return super().unlink()
 
     # ---------------------------------------------------
     # CONFIRM / CANCEL

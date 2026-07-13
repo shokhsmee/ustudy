@@ -1,4 +1,5 @@
 from odoo import api, fields, models, tools, _
+from odoo.exceptions import UserError
 
 
 class EduStudentLessonReport(models.Model):
@@ -53,7 +54,22 @@ class EduStudentLessonReport(models.Model):
         readonly=True,
     )
 
+    # Simplified three-way result used by the timetable Vazifalar roster:
+    # passed / not passed / failed. "not_passed" covers both the students who
+    # never submitted and those who submitted but aren't graded yet.
+    result_state = fields.Selection(
+        [
+            ("passed", "O'tdi"),
+            ("not_passed", "O'tmadi"),
+            ("failed", "Yiqildi"),
+        ],
+        string="Natija",
+        readonly=True,
+    )
+
     mark = fields.Float(string="Mark", readonly=True)
+    student_comment = fields.Text(string="Student Comment", readonly=True)
+    teacher_comment = fields.Text(string="Teacher Comment", readonly=True)
 
     def init(self):
         tools.drop_view_if_exists(self.env.cr, self._table)
@@ -76,12 +92,26 @@ class EduStudentLessonReport(models.Model):
                     COALESCE(tt.end_datetime, tt.start_datetime + INTERVAL '90 minutes') AS end_datetime,
                     tt.state AS timetable_state,
                     al.status AS attendance_status,
+                    COALESCE(sub.state, 'not_submitted') AS homework_state,
                     CASE
-                        WHEN sub.id IS NULL THEN 'not_submitted'
-                        ELSE sub.state
-                    END AS homework_state,
-                    sub.mark AS mark
-                FROM edu_group_student gs
+                        WHEN sub.state = 'graded' THEN 'passed'
+                        WHEN sub.state = 'failed' THEN 'failed'
+                        ELSE 'not_passed'
+                    END AS result_state,
+                    sub.mark AS mark,
+                    sub.comment AS student_comment,
+                    sub.teacher_comment AS teacher_comment
+                -- One enrollment row per (student, group). Guards against
+                -- duplicate edu.group.student records (same student enrolled
+                -- twice in one group), which would otherwise double every
+                -- lesson row for that student.
+                FROM (
+                    SELECT DISTINCT ON (student_id, group_id)
+                           id, student_id, group_id, enrollment_date
+                    FROM edu_group_student
+                    ORDER BY student_id, group_id,
+                             enrollment_date ASC NULLS FIRST, id ASC
+                ) gs
                 JOIN edu_timetable tt ON tt.group_id = gs.group_id
                     AND (
                         gs.enrollment_date IS NULL
@@ -93,10 +123,94 @@ class EduStudentLessonReport(models.Model):
                     ON al.attendance_id = att.id AND al.student_id = gs.student_id
                 LEFT JOIN edu_homework hw
                     ON hw.slide_id = tt.slide_id AND hw.is_published = true
-                LEFT JOIN edu_homework_submission sub
-                    ON sub.homework_id = hw.id AND sub.student_id = gs.student_id
+                -- One row per student: pick the most relevant submission
+                -- (passed first, then failed, then newest) so resubmissions
+                -- don't duplicate the student's roster row.
+                LEFT JOIN LATERAL (
+                    SELECT s.state, s.mark, s.comment, s.teacher_comment
+                    FROM edu_homework_submission s
+                    WHERE s.homework_id = hw.id AND s.student_id = gs.student_id
+                    ORDER BY
+                        CASE s.state
+                            WHEN 'graded' THEN 0
+                            WHEN 'failed' THEN 1
+                            WHEN 'submitted' THEN 2
+                            ELSE 3
+                        END,
+                        s.submit_date DESC NULLS LAST,
+                        s.id DESC
+                    LIMIT 1
+                ) sub ON true
             )
         """)
+
+    def write(self, vals):
+        """The report is a SQL view, but Ball/Izoh are editable inline in the
+        timetable's Vazifalar roster: redirect those two fields to the row's
+        real edu.homework.submission — the same record the view's LATERAL
+        join shows — creating one when the student never submitted (grading
+        on the student's behalf). Submission.create()/write() then handle
+        state-from-mark, XP and slide completion. Never calls super():
+        UPDATE on the SQL view would fail."""
+        editable = {"mark", "teacher_comment"}
+        forbidden = set(vals) - editable
+        if forbidden:
+            raise UserError(_(
+                "Bu ro'yxatda faqat Ball va Izoh o'zgartiriladi (%s emas).",
+                ", ".join(sorted(forbidden)),
+            ))
+        if not vals:
+            return True
+        Submission = self.env["edu.homework.submission"]
+        # same relevance order as the view's LATERAL join:
+        # graded, failed, submitted, rest — then newest submission first
+        state_order = {"graded": 0, "failed": 1, "submitted": 2}
+
+        def sub_sort_key(s):
+            ts = s.submit_date.timestamp() if s.submit_date else None
+            return (
+                state_order.get(s.state, 3),
+                -ts if ts is not None else float("inf"),
+                -s.id,
+            )
+
+        for row in self:
+            homework = row.homework_id
+            if not homework:
+                if not row.slide_id:
+                    raise UserError(_(
+                        "%s: bu dars uchun \"Dars/Slayd\" tanlanmagan — ball/izoh qo'yib bo'lmaydi.",
+                        row.student_id.display_name,
+                    ))
+                # Grading a lesson whose slide has no homework yet: attach one
+                # automatically (named after the slide) so the ball has a
+                # submission to live on. edu.homework.create() fills channel /
+                # pass_mark defaults and re-syncs timetable homework flags.
+                # Search first: row.homework_id is stale within this batch, and
+                # grading several students at once must not duplicate it.
+                Homework = self.env["edu.homework"]
+                homework = Homework.search([
+                    ("slide_id", "=", row.slide_id.id),
+                    ("is_published", "=", True),
+                ], limit=1) or Homework.create({
+                    "name": row.slide_id.name,
+                    "slide_id": row.slide_id.id,
+                })
+            subs = Submission.search([
+                ("homework_id", "=", homework.id),
+                ("student_id", "=", row.student_id.id),
+            ])
+            if subs:
+                min(subs, key=sub_sort_key).write(vals)
+            else:
+                user = row.student_id.user_ids[:1]
+                Submission.create(dict(
+                    vals,
+                    homework_id=homework.id,
+                    student_id=row.student_id.id,
+                    user_id=user.id if user else self.env.user.id,
+                ))
+        return True
 
     @api.model
     def filter_guruhga_qoshilgan(self, domain=None, student_id=None):

@@ -1,7 +1,9 @@
 from odoo import api, fields, models, tools, _
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from datetime import datetime, timedelta, time
 import pytz
+
+from .edu_group import teacher_locked
 
 
 class EduTimetable(models.Model):
@@ -92,7 +94,7 @@ class EduTimetable(models.Model):
     slide_id = fields.Many2one(
         "slide.slide",
         string="Lesson/Slide",
-        domain="[('channel_id', '=', slide_channel_id)]",
+        domain="[('channel_id', '=', slide_channel_id), ('is_category', '=', False)]",
     )
 
     slide_channel_id = fields.Many2one(
@@ -133,6 +135,24 @@ class EduTimetable(models.Model):
         store=False,
     )
 
+    module_id = fields.Many2one(
+        "edu.module",
+        string="Modul",
+        compute="_compute_module_id",
+        store=False,
+        help="Module this lesson belongs to, derived from its lesson number "
+             "(lesson_sequence) and lessons_per_module in the config.",
+    )
+
+    # UI flag: True when the current user is a locked teacher — schedule
+    # fields render readonly in the views. Enforcement is in write()/create().
+    teacher_readonly = fields.Boolean(compute="_compute_teacher_readonly")
+
+    def _compute_teacher_readonly(self):
+        locked = teacher_locked(self.env)
+        for rec in self:
+            rec.teacher_readonly = locked
+
     # -----------------------------
     # Optional Homework integration
     # -----------------------------
@@ -169,12 +189,18 @@ class EduTimetable(models.Model):
         for rec in self:
             rec.is_today = rec.start_date == today
 
+    # Stored name must not depend on who triggers the recompute:
+    # context_timestamp falls back to UTC when the acting user has no tz
+    # (cron, server-side recomputes), which stored e.g. "11:30" for a
+    # 16:30 Tashkent lesson. Pin the school's timezone instead.
+    NAME_TZ = pytz.timezone("Asia/Tashkent")
+
     @api.depends("group_id.name", "weekday_id.name", "start_datetime")
     def _compute_name(self):
         for record in self:
             if record.group_id and record.weekday_id and record.start_datetime:
-                start_time = fields.Datetime.context_timestamp(record, record.start_datetime).strftime("%H:%M")
-                record.name = f"{record.group_id.name} - {record.weekday_id.name} {start_time}"
+                local_dt = pytz.utc.localize(record.start_datetime).astimezone(self.NAME_TZ)
+                record.name = f"{record.group_id.name} - {record.weekday_id.name} {local_dt.strftime('%H:%M')}"
             else:
                 record.name = "New Timetable Entry"
 
@@ -195,13 +221,22 @@ class EduTimetable(models.Model):
             group = self.env["edu.group"].browse(gid)
             start = max(group.start_lesson_number or 1, 1)
             ordered = self.env["edu.timetable"].search(
-                [("group_id", "=", gid)],
+                [("group_id", "=", gid), ("state", "!=", "cancelled")],
                 order="start_datetime asc",
             )
             for i, r in enumerate(ordered, start):
                 seq_map[r.id] = i
         for rec in self:
             rec.lesson_sequence = seq_map.get(rec.id, 0)
+
+    @api.depends("lesson_sequence")
+    def _compute_module_id(self):
+        for rec in self:
+            if rec.group_id and rec.lesson_sequence:
+                module, _pos = rec.group_id._module_position_for_lesson(rec.lesson_sequence)
+                rec.module_id = module
+            else:
+                rec.module_id = False
 
     @api.depends("slide_id")
     def _compute_has_homework(self):
@@ -293,6 +328,38 @@ class EduTimetable(models.Model):
                         group=conflicts.group_id.name,
                     )
                 )
+
+    # ---------- teacher lock ----------
+    # Teachers run lessons (state transitions of the attendance flow, topic,
+    # notes) but never reschedule: time/day/room/assignment changes, creating
+    # and deleting lessons are administration work.
+    TEACHER_PROTECTED_FIELDS = {
+        "group_id", "teacher_id", "weekday_id", "room_id",
+        "start_datetime", "end_datetime",
+    }
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        if teacher_locked(self.env):
+            raise AccessError(_("O'qituvchi dars jadvaliga yangi dars qo'sha olmaydi. Bu administratsiya vazifasi."))
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if teacher_locked(self.env):
+            blocked = self.TEACHER_PROTECTED_FIELDS & set(vals)
+            if blocked:
+                raise AccessError(_(
+                    "O'qituvchi dars vaqti, kuni, xonasi yoki guruhini o'zgartira olmaydi (%s). Bu administratsiya vazifasi.",
+                    ", ".join(sorted(blocked)),
+                ))
+            if vals.get("state") == "cancelled":
+                raise AccessError(_("O'qituvchi darsni bekor qila olmaydi. Bu administratsiya vazifasi."))
+        return super().write(vals)
+
+    def unlink(self):
+        if teacher_locked(self.env):
+            raise AccessError(_("O'qituvchi darsni o'chira olmaydi. Bu administratsiya vazifasi."))
+        return super().unlink()
 
     # ---------- actions ----------
     def action_mark_completed(self):
@@ -460,6 +527,18 @@ class EduGroup(models.Model):
         # keep a stable order
         return self.course_id.slide_channel_id.slide_ids.sorted(lambda s: (s.sequence or 0, s.id))
 
+    def _get_lessons_by_no(self):
+        """Map {lesson_no: slide} for the course's lessons (non-category slides
+        that carry a lesson number). The timetable attaches a slide to a day by
+        matching the day's 'No.' against this lesson number."""
+        self.ensure_one()
+        if not self.course_id or not self.course_id.slide_channel_id:
+            return {}
+        lessons = self.course_id.slide_channel_id.slide_ids.filtered(
+            lambda s: not s.is_category and s.lesson_no
+        )
+        return {s.lesson_no: s for s in lessons}
+
     def action_regenerate_timetable(self):
         self.ensure_one()
         self._ensure_end_date()
@@ -470,8 +549,8 @@ class EduGroup(models.Model):
             raise UserError(_("Please select a lesson room before generating timetable."))
         if not self.start_date or not self.end_date:
             raise UserError(_("Please set start and end dates before generating timetable."))
-        if self.start_date >= self.end_date:
-            raise UserError(_("End date must be after start date."))
+        if self.start_date > self.end_date:
+            raise UserError(_("End date must not be before start date."))
         if not self.lesson_start or not self.lesson_end:
             raise UserError(_("Please set lesson start and end times."))
         if self.lesson_start >= self.lesson_end:
@@ -486,34 +565,64 @@ class EduGroup(models.Model):
 
         Timetable = self.env["edu.timetable"]
 
-        future_entries = Timetable.search(
+        # Only wipe lessons that haven't been held yet. Started lessons
+        # (in_progress/completed) carry attendance records with
+        # ondelete=cascade — deleting them would silently destroy the
+        # attendance history, so they must survive regeneration.
+        Timetable.search(
             [
                 ("group_id", "=", self.id),
                 ("start_datetime", ">=", regen_from_dt_utc),
-                ("state", "!=", "cancelled"),
+                ("state", "=", "scheduled"),
             ]
-        )
-        if future_entries:
-            future_entries.unlink()
+        ).unlink()
 
-        lessons = self._get_channel_lessons()
+        lessons_by_no = self._get_lessons_by_no()
 
         past_entries = Timetable.search(
             [
                 ("group_id", "=", self.id),
                 ("start_datetime", "<", regen_from_dt_utc),
                 ("state", "!=", "cancelled"),
-            ],
-            order="start_datetime asc",
+            ]
         )
-        slide_start = max((self.start_lesson_number or 1) - 1, 0)
-        lesson_index = slide_start + len(past_entries.filtered(lambda r: r.slide_id))
+        # Started lessons on/after the regeneration day survived the wipe:
+        # their dates must not receive a second entry (partial unique index on
+        # group_id/start_datetime) and they still occupy a "No." slot.
+        kept_entries = Timetable.search(
+            [
+                ("group_id", "=", self.id),
+                ("start_datetime", ">=", regen_from_dt_utc),
+                ("state", "not in", ("scheduled", "cancelled")),
+            ]
+        )
+        kept_dates = {
+            fields.Datetime.context_timestamp(self, e.start_datetime).date()
+            for e in kept_entries
+        }
+
+        # The timetable "No." numbers every non-cancelled entry sequentially from
+        # start_lesson_number, so the first regenerated day continues right after
+        # the kept past entries. We attach the slide whose lesson_no == that "No.".
+        next_lesson_no = max(self.start_lesson_number or 1, 1) + len(past_entries)
 
         timetable_entries = []
         current_date = regen_from_date
-        remaining = self.lesson_count if (self.use_lesson_count and self.lesson_count) else None
+        # Lessons already held before the regeneration day count toward the total.
+        remaining = None
+        if self.use_lesson_count and self.lesson_count:
+            remaining = self.lesson_count - len(past_entries)
 
         while current_date <= self.end_date and (remaining is None or remaining > 0):
+            if current_date in kept_dates:
+                # A started lesson already sits on this date: it keeps its slot
+                # (and its "No."), so advance the numbering past it.
+                next_lesson_no += 1
+                if remaining is not None:
+                    remaining -= 1
+                current_date += timedelta(days=1)
+                continue
+
             weekday_num = current_date.weekday()
             matching_weekday = self.lesson_days.filtered(lambda w: w.sequence == weekday_num + 1)
 
@@ -521,10 +630,9 @@ class EduGroup(models.Model):
                 start_dt_utc = self._make_utc_datetime(current_date, self.lesson_start)
                 end_dt_utc = self._make_utc_datetime(current_date, self.lesson_end)
 
-                slide_id = False
-                if lessons and lesson_index < len(lessons):
-                    slide_id = lessons[lesson_index].id
-                    lesson_index += 1
+                slide = lessons_by_no.get(next_lesson_no)
+                slide_id = slide.id if slide else False
+                next_lesson_no += 1
 
                 vals = {
                     "group_id": self.id,
@@ -545,11 +653,6 @@ class EduGroup(models.Model):
 
         if timetable_entries:
             self.write({"timetable_ids": timetable_entries})
-            self.env.user.notify_success(
-                message=_(
-                    "%s timetable entries regenerated (from %s)!"
-                ) % (len(timetable_entries), regen_from_date)
-            )
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
@@ -572,14 +675,14 @@ class EduGroup(models.Model):
             raise UserError(_("Please select a lesson room before generating timetable."))
         if not self.start_date or not self.end_date:
             raise UserError(_("Please set start and end dates before generating timetable."))
-        if self.start_date >= self.end_date:
-            raise UserError(_("End date must be after start date."))
+        if self.start_date > self.end_date:
+            raise UserError(_("End date must not be before start date."))
         if not self.lesson_start or not self.lesson_end:
             raise UserError(_("Please set lesson start and end times."))
         if self.lesson_start >= self.lesson_end:
             raise UserError(_("Lesson end time must be after start time."))
 
-        lessons = self._get_channel_lessons()
+        lessons_by_no = self._get_lessons_by_no()
 
         existing_entries = self.env["edu.timetable"].search([("group_id", "=", self.id)])
         if existing_entries:
@@ -587,7 +690,9 @@ class EduGroup(models.Model):
 
         timetable_entries = []
         current_date = self.start_date
-        lesson_index = max((self.start_lesson_number or 1) - 1, 0)
+        # The Nth day of the group carries "No." = start_lesson_number + (N-1),
+        # and we attach the slide whose lesson_no matches that "No.".
+        next_lesson_no = max(self.start_lesson_number or 1, 1)
         remaining = self.lesson_count if (self.use_lesson_count and self.lesson_count) else None
 
         while current_date <= self.end_date and (remaining is None or remaining > 0):
@@ -598,10 +703,9 @@ class EduGroup(models.Model):
                 start_dt_utc = self._make_utc_datetime(current_date, self.lesson_start)
                 end_dt_utc = self._make_utc_datetime(current_date, self.lesson_end)
 
-                slide_id = False
-                if lessons and lesson_index < len(lessons):
-                    slide_id = lessons[lesson_index].id
-                    lesson_index += 1
+                slide = lessons_by_no.get(next_lesson_no)
+                slide_id = slide.id if slide else False
+                next_lesson_no += 1
 
                 vals = {
                     "group_id": self.id,

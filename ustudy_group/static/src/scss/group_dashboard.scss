@@ -2,6 +2,46 @@
     padding: 0;
 }
 
+/* ------------------------------------------------------------------ */
+/* Mini dashboard on the group form (KPI cards before the buttons)    */
+/* ------------------------------------------------------------------ */
+.o_group_mini_dashboard {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1rem;
+
+    .o_group_kpi_card {
+        flex: 1 1 0;
+        min-width: 160px;
+        background: #e7e7e7;
+        border-radius: 1rem;
+        padding: 1rem 1.25rem;
+    }
+
+    .o_group_kpi_label {
+        font-size: 0.85rem;
+        color: #555;
+        margin-bottom: 0.75rem;
+    }
+
+    .o_group_kpi_value {
+        font-size: 2.75rem;
+        font-weight: 500;
+        line-height: 1;
+        color: #111;
+
+        &.o_group_kpi_value_sm {
+            font-size: 1.9rem;
+            font-weight: 600;
+        }
+
+        .o_field_widget {
+            display: inline;
+        }
+    }
+}
+
 .o_group_dashboard_card {
     display: flex;
     align-items: center;

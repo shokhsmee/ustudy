@@ -16,9 +16,24 @@
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h3 class="mb-0">Mening Vazifalarim</h3>
 
-                    <a href="/my/lessons/calendar" class="btn btn-primary btn-sm">
+                    <a t-attf-href="/my/lessons/calendar#{'?group_id=%s' % selected_group.id if selected_group else ''}"
+                       class="btn btn-primary btn-sm">
                         Kalendar ko‘rinishi
                     </a>
+                </div>
+
+                <!-- Group selector: a student in several groups picks one so
+                     lessons are not mixed together. -->
+                <div t-if="groups and len(groups) &gt; 1" class="mb-3">
+                    <ul class="nav nav-pills">
+                        <t t-foreach="groups" t-as="grp">
+                            <li class="nav-item">
+                                <a t-attf-href="/my/lessons?group_id={{ grp.id }}"
+                                   t-attf-class="nav-link #{'active' if selected_group and grp.id == selected_group.id else ''}"
+                                   t-esc="grp.name"/>
+                            </li>
+                        </t>
+                    </ul>
                 </div>
 
                 <table class="table table-striped table-hover">
@@ -32,6 +47,7 @@
                             <th>Davomat</th>
                             <th>Vazifa holati</th>
                             <th>Ball</th>
+                            <th>Amal</th>
                         </tr>
                     </thead>
 
@@ -71,17 +87,22 @@
                                 </td>
 
                                 <td>
-                                    <span t-if="rec.homework_state == 'not_submitted'" class="badge bg-secondary">
-                                        Not Submitted
-                                    </span>
-                                    <span t-if="rec.homework_state == 'submitted'" class="badge bg-info">
-                                        Submitted
-                                    </span>
-                                    <span t-if="rec.homework_state == 'graded'" class="badge bg-success">
-                                        Passed
-                                    </span>
-                                    <span t-if="rec.homework_state == 'failed'" class="badge bg-danger">
-                                        Failed
+                                    <t t-if="rec.timetable_state in ('in_progress', 'completed')">
+                                        <span t-if="rec.homework_state == 'not_submitted'" class="badge bg-secondary">
+                                            Not Submitted
+                                        </span>
+                                        <span t-if="rec.homework_state == 'submitted'" class="badge bg-info">
+                                            Submitted
+                                        </span>
+                                        <span t-if="rec.homework_state == 'graded'" class="badge bg-success">
+                                            Passed
+                                        </span>
+                                        <span t-if="rec.homework_state == 'failed'" class="badge bg-danger">
+                                            Failed
+                                        </span>
+                                    </t>
+                                    <span t-else="" class="badge bg-light text-muted">
+                                        <i class="fa fa-lock me-1"/>Dars boshlanmagan
                                     </span>
                                 </td>
 
@@ -94,12 +115,21 @@
                                     </t>
                                 </td>
 
+                                <td>
+                                    <a t-if="rec.homework_id and rec.timetable_state in ('in_progress', 'completed')"
+                                       t-attf-href="/homework/{{ rec.homework_id.id }}"
+                                       class="btn btn-sm btn-outline-primary">
+                                        Vazifani ochish
+                                    </a>
+                                    <span t-else="" class="text-muted">-</span>
+                                </td>
+
                             </tr>
                         </t>
 
                         <t t-if="not records">
                             <tr>
-                                <td colspan="8" class="text-center text-muted">
+                                <td colspan="9" class="text-center text-muted">
                                     Hozircha darslar mavjud emas.
                                 </td>
                             </tr>
@@ -129,14 +159,29 @@
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h3 class="mb-0">Kalendar (Darslar)</h3>
 
-                    <a href="/my/lessons" class="btn btn-secondary btn-sm">
+                    <a t-attf-href="/my/lessons#{'?group_id=%s' % selected_group.id if selected_group else ''}"
+                       class="btn btn-secondary btn-sm">
                         Jadval ko‘rinishi
                     </a>
                 </div>
 
+                <!-- Group selector (only when the student is in several groups). -->
+                <div t-if="groups and len(groups) &gt; 1" class="mb-3">
+                    <ul class="nav nav-pills">
+                        <t t-foreach="groups" t-as="grp">
+                            <li class="nav-item">
+                                <a t-attf-href="/my/lessons/calendar?group_id={{ grp.id }}"
+                                   t-attf-class="nav-link #{'active' if selected_group and grp.id == selected_group.id else ''}"
+                                   t-esc="grp.name"/>
+                            </li>
+                        </t>
+                    </ul>
+                </div>
+
                 <div id="lesson_calendar"
                     class="border rounded p-3 bg-white"
-                    t-att-data-events="records and records.read(['timetable_name','start_datetime','end_datetime']) or []">
+                    style="min-height: 400px;"
+                    t-att-data-events="events_json">
 
                     <p class="text-muted mb-0">
                         Kalendar yuklanmoqda...
@@ -144,19 +189,6 @@
                 </div>
 
             </div>
-
-            <!-- Put all lessons into JS variable -->
-            <script type="text/javascript">
-                window.lessonCalendarEvents = [
-                    <t t-foreach="records" t-as="rec">
-                        {
-                            title: "<t t-esc="rec.timetable_name"/>",
-                            start: "<t t-esc="rec.start_datetime"/>",
-                            end: "<t t-esc="rec.end_datetime"/>",
-                        },
-                    </t>
-                ];
-            </script>
 
         </t>
     </template>

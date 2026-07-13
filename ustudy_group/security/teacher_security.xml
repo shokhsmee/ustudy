@@ -8,7 +8,10 @@
     ============================================================ -->
     <record id="group_teacher" model="res.groups">
         <field name="name">Teacher</field>
-        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <!-- eLearning Officer: shows the eLearning app and passes the
+             slide-lock/preview checks in ustudy_homework (lesson_started_for /
+             can_access_for treat officers as teachers). -->
+        <field name="implied_ids" eval="[(4, ref('base.group_user')), (4, ref('website_slides.group_website_slides_officer'))]"/>
     </record>
 
 
@@ -21,11 +24,13 @@
          Rule logic: teacher sees rows where teacher_id.user_id == me
     ============================================================ -->
 
-    <!-- 1. edu.group — only groups where I am the teacher -->
+    <!-- 1. edu.group — my groups, plus groups where I substitute at least one
+         lesson (the timetable rule then shows me ONLY my own lessons inside
+         such a group, not its whole schedule). -->
     <record id="rule_edu_group_teacher" model="ir.rule">
         <field name="name">Teacher: own groups only</field>
         <field name="model_id" ref="model_edu_group"/>
-        <field name="domain_force">[('teacher_id.user_id', '=', user.id)]</field>
+        <field name="domain_force">['|', ('teacher_id.user_id', '=', user.id), ('timetable_ids.teacher_id.user_id', '=', user.id)]</field>
         <field name="groups" eval="[(4, ref('ustudy_group.group_teacher'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
@@ -33,11 +38,13 @@
         <field name="perm_unlink" eval="False"/>
     </record>
 
-    <!-- 2. edu.group.student — only students in my groups -->
+    <!-- 2. edu.group.student — students in my groups, incl. groups where I
+         substitute (the attendance flow reads the roster and increments
+         lesson counters on confirm, so a substitute needs these rows too) -->
     <record id="rule_edu_group_student_teacher" model="ir.rule">
         <field name="name">Teacher: students in own groups only</field>
         <field name="model_id" ref="model_edu_group_student"/>
-        <field name="domain_force">[('group_id.teacher_id.user_id', '=', user.id)]</field>
+        <field name="domain_force">['|', ('group_id.teacher_id.user_id', '=', user.id), ('group_id.timetable_ids.teacher_id.user_id', '=', user.id)]</field>
         <field name="groups" eval="[(4, ref('ustudy_group.group_teacher'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
@@ -45,11 +52,13 @@
         <field name="perm_unlink" eval="False"/>
     </record>
 
-    <!-- 3. edu.timetable — only timetable of my groups -->
+    <!-- 3. edu.timetable — lessons of my groups (even when a single lesson is
+         reassigned to a substitute teacher) plus lessons where I substitute.
+         Schedule edits are blocked field-wise in edu.timetable.write(). -->
     <record id="rule_edu_timetable_teacher" model="ir.rule">
         <field name="name">Teacher: own timetable only</field>
         <field name="model_id" ref="model_edu_timetable"/>
-        <field name="domain_force">[('teacher_id.user_id', '=', user.id)]</field>
+        <field name="domain_force">['|', ('teacher_id.user_id', '=', user.id), ('group_id.teacher_id.user_id', '=', user.id)]</field>
         <field name="groups" eval="[(4, ref('ustudy_group.group_teacher'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
@@ -57,11 +66,11 @@
         <field name="perm_unlink" eval="False"/>
     </record>
 
-    <!-- 4. edu.attendance — only attendance records of my groups -->
+    <!-- 4. edu.attendance — attendance of my groups or lessons I substituted -->
     <record id="rule_edu_attendance_teacher" model="ir.rule">
         <field name="name">Teacher: own attendance only</field>
         <field name="model_id" ref="model_edu_attendance"/>
-        <field name="domain_force">[('teacher_id.user_id', '=', user.id)]</field>
+        <field name="domain_force">['|', ('teacher_id.user_id', '=', user.id), ('group_id.teacher_id.user_id', '=', user.id)]</field>
         <field name="groups" eval="[(4, ref('ustudy_group.group_teacher'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
@@ -91,6 +100,89 @@
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="False"/>
         <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- 7. res.partner — the Talabalar lists showed every student to every
+         teacher (only the roster columns were rule-filtered, so foreign
+         students appeared as empty rows). Teachers now see ONLY students of
+         groups they teach or substitute in — same ownership logic as the
+         edu.group rule above. Non-student partners (users, staff, companies)
+         stay visible: chatter authors, avatars and other system flows read
+         them, and restricting those breaks unrelated screens. The rule also
+         applies to write/create/unlink so the wide-open ACL from
+         ustudy_student can't be used on foreign students. -->
+    <record id="rule_res_partner_teacher" model="ir.rule">
+        <field name="name">Teacher: students of own groups only</field>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="domain_force">['|', '|', '|', '|',
+            ('is_student', '=', False),
+            ('user_ids.share', '=', False),
+            ('id', '=', user.partner_id.id),
+            ('group_student_ids.group_id.teacher_id.user_id', '=', user.id),
+            ('group_student_ids.group_id.timetable_ids.teacher_id.user_id', '=', user.id),
+        ]</field>
+        <!-- ('user_ids.share','=',False): partners of INTERNAL users stay
+             visible even when wrongly flagged is_student (several staff
+             partners in prod carry that flag) — hiding a chatter author or
+             assignee breaks those screens with an AccessError. -->
+
+        <field name="groups" eval="[(4, ref('ustudy_group.group_teacher'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- ============================================================
+         8-9. eLearning — teachers see only their own groups' courses.
+         Teachers imply the website_slides Officer group, whose core rule
+         grants read-all on channels/slides; group rules OR together, so a
+         plain teacher-group rule could not restrict anything. These rules
+         are GLOBAL instead (no groups → ANDed with everything) and
+         evaluate per-user: everyone else gets the no-op [(1,'=',1)], a
+         locked teacher gets scoped to channels of groups they teach or
+         substitute in. Same lock condition as teacher_locked() in
+         edu_group.py.
+    ============================================================ -->
+    <record id="rule_slide_channel_teacher_scope" model="ir.rule">
+        <field name="name">eLearning kurs: teacher faqat o'z guruhlarining kurslari</field>
+        <field name="model_id" ref="website_slides.model_slide_channel"/>
+        <field name="domain_force">['|',
+            ('edu_group_ids.teacher_id.user_id', '=', user.id),
+            ('edu_group_ids.timetable_ids.teacher_id.user_id', '=', user.id),
+        ] if (
+            user.has_group('ustudy_group.group_teacher')
+            and not user.has_group('base.group_system')
+            and not user.has_group('ustudy_group.group_edu_admin')
+        ) else [(1, '=', 1)]</field>
+    </record>
+
+    <record id="rule_slide_slide_teacher_scope" model="ir.rule">
+        <field name="name">eLearning dars: teacher faqat o'z guruhlarining darslari</field>
+        <field name="model_id" ref="website_slides.model_slide_slide"/>
+        <field name="domain_force">['|',
+            ('channel_id.edu_group_ids.teacher_id.user_id', '=', user.id),
+            ('channel_id.edu_group_ids.timetable_ids.teacher_id.user_id', '=', user.id),
+        ] if (
+            user.has_group('ustudy_group.group_teacher')
+            and not user.has_group('base.group_system')
+            and not user.has_group('ustudy_group.group_edu_admin')
+        ) else [(1, '=', 1)]</field>
+    </record>
+
+    <!-- 10. Employees app becomes HR-only: core hr ships this menu with
+         base.group_user in group_ids (visible to every internal user), so
+         that link is REMOVED and HR officer/system are kept. Teachers and
+         other non-HR staff lose the app icon entirely; the hr.employee
+         record rule above already limited the data to themselves anyway.
+         (A future upgrade of the core hr module may re-add base.group_user;
+         re-upgrading ustudy_group then removes it again.) -->
+    <record id="hr.menu_hr_root" model="ir.ui.menu">
+        <field name="group_ids" eval="[
+            (3, ref('base.group_user')),
+            (4, ref('hr.group_hr_user')),
+            (4, ref('base.group_system')),
+        ]"/>
     </record>
 
 </odoo>

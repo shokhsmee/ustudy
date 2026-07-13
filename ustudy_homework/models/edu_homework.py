@@ -29,6 +29,22 @@ class EduHomework(models.Model):
 
     is_published = fields.Boolean(string="Published", default=True)
 
+    def is_visible_for(self, user=None):
+        """Whether this homework may be shown to ``user`` on the website.
+
+        Published is necessary but not sufficient: if the homework is tied to a
+        lesson slide, the user's group must have STARTED that lesson (timetable
+        in_progress/completed). Homework not tied to any slide cannot be gated by
+        a timetable, so it stays visible once published.
+        """
+        self.ensure_one()
+        user = user or self.env.user
+        if not self.is_published:
+            return False
+        if not self.slide_id:
+            return True
+        return self.slide_id.lesson_started_for(user)
+
     mark_count = fields.Integer(string="Marks", compute="_compute_mark_count", store=False)
     mark_ids = fields.One2many("edu.homework.mark", "homework_id", string="Marks")
 

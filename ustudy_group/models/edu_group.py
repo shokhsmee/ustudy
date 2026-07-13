@@ -1,6 +1,38 @@
 from odoo import api, fields, models, _
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from datetime import timedelta
+
+
+def teacher_locked(env):
+    """Teachers may only run the attendance flow; scheduling and group
+    administration stay admin-only (system admins and the Administrator
+    role both count as administration). sudo'd flows are never locked."""
+    return (
+        not env.su
+        and env.user.has_group("ustudy_group.group_teacher")
+        and not env.user.has_group("base.group_system")
+        and not env.user.has_group("ustudy_group.group_edu_admin")
+    )
+
+
+def edu_administration(env):
+    """Users acting as administration in the attendance flow (confirm
+    without a photo, reset a confirmed attendance): system admins and the
+    operational Administrator role."""
+    return env.user.has_group("base.group_system") or env.user.has_group(
+        "ustudy_group.group_edu_admin"
+    )
+
+
+def edu_admin_locked(env):
+    """The Administrator role (TZ) manages students, groups, schedule, CRM
+    and events — but never deletes contacts and never touches payment
+    records. sudo'd flows and system admins are never locked."""
+    return (
+        not env.su
+        and env.user.has_group("ustudy_group.group_edu_admin")
+        and not env.user.has_group("base.group_system")
+    )
 
 
 class EduGroup(models.Model):
@@ -74,6 +106,12 @@ class EduGroup(models.Model):
         tracking=True,
         ondelete="set null",
     )
+    extra_teacher_id = fields.Many2one(
+        "hr.employee",
+        string="Mentor",
+        tracking=True,
+        ondelete="set null",
+    )
 
     start_date = fields.Date(string="Start Date", tracking=True)
     end_date = fields.Date(string="End Date", tracking=True)
@@ -113,6 +151,75 @@ class EduGroup(models.Model):
         store=False,
     )
 
+    # ------------------------------------------------------------------
+    # Mini-dashboard KPIs (shown as cards at the top of the group form).
+    # All non-stored / display-only. Homework % is soft-guarded because
+    # vazifa_ratio is contributed by the optional ustudy_homework module.
+    # ------------------------------------------------------------------
+    active_student_count = fields.Integer(
+        string="Aktiv o'quvchilar",
+        compute="_compute_group_kpis",
+        store=False,
+    )
+    stopped_student_count = fields.Integer(
+        string="To'xtatgan o'quvchilar",
+        compute="_compute_group_kpis",
+        store=False,
+    )
+    attendance_display = fields.Char(
+        string="Davomat",
+        compute="_compute_group_kpis",
+        store=False,
+    )
+    homework_display = fields.Char(
+        string="Vazifa ko'rsatkichi",
+        compute="_compute_group_kpis",
+        store=False,
+    )
+    debt_total_display = fields.Char(
+        string="Qarzdorlar jami",
+        compute="_compute_group_kpis",
+        store=False,
+    )
+
+    @api.depends("student_line_ids", "student_line_ids.state")
+    def _compute_group_kpis(self):
+        config = self.env["edu.config"].get_config()
+        lpm = config.lessons_per_module or 12
+        per_lesson = (config.module_price / lpm) if lpm else 0.0
+        has_homework = "vazifa_ratio" in self.env["edu.group.student"]._fields
+
+        for rec in self:
+            lines = rec.student_line_ids
+            active = lines.filtered(lambda l: l.state == "active")
+            stopped = lines.filtered(lambda l: l.state in ("frozen", "cancelled"))
+
+            rec.active_student_count = len(active)
+            rec.stopped_student_count = len(stopped)
+
+            # Davomat: attended / passed lessons across active students.
+            passed = sum(active.mapped("passed_lessons_count"))
+            attended = sum(active.mapped("attended_lessons_count"))
+            rec.attendance_display = ("%d%%" % round(attended * 100.0 / passed)) if passed else "0%"
+
+            # Vazifa ko'rsatkichi: submitted / total homeworks (ustudy_homework only).
+            if has_homework and active:
+                submitted = total = 0
+                for line in active:
+                    try:
+                        s, t = (line.vazifa_ratio or "0/0").split("/")
+                        submitted += int(s)
+                        total += int(t)
+                    except (ValueError, AttributeError):
+                        continue
+                rec.homework_display = ("%d%%" % round(submitted * 100.0 / total)) if total else "0%"
+            else:
+                rec.homework_display = "0%"
+
+            # Qarzdorlar jami: owed lessons x per-lesson price across non-cancelled students.
+            owed = sum(lines.filtered(lambda l: l.state != "cancelled").mapped("debt_lessons_count"))
+            rec.debt_total_display = "{:,.0f}".format(owed * per_lesson).replace(",", " ")
+
     lesson_days = fields.Many2many(
         'edu.weekday',
         string='Lesson Days',
@@ -127,6 +234,15 @@ class EduGroup(models.Model):
 
     notes = fields.Text(string="Notes")
     active = fields.Boolean(default=True)
+
+    # UI flag for the views: True when the current user is a locked teacher,
+    # so admin fields render readonly. Enforcement is in write()/create().
+    teacher_readonly = fields.Boolean(compute="_compute_teacher_readonly")
+
+    def _compute_teacher_readonly(self):
+        locked = teacher_locked(self.env)
+        for rec in self:
+            rec.teacher_readonly = locked
 
 
     started_lessons_count = fields.Integer(
@@ -152,6 +268,28 @@ class EduGroup(models.Model):
              "0 means the group is currently AT a boundary (next lesson starts a new module).",
     )
 
+    lessons_into_current_module = fields.Integer(
+        string="Lessons Done in Current Module",
+        compute="_compute_module_boundary",
+        store=False,
+        help="How many lessons of the current module the group has already started/completed.",
+    )
+
+    max_join_lesson = fields.Integer(
+        string="Join Deadline (Lesson #)",
+        compute="_compute_module_boundary",
+        store=False,
+        help="Config value: new students may join only within the first N lessons of the module.",
+    )
+
+    can_add_student_now = fields.Boolean(
+        string="Can Add Student Now",
+        compute="_compute_module_boundary",
+        store=False,
+        help="True while the group is within the first max_join_lesson lessons of its current module, "
+             "so a new student can still join it.",
+    )
+
     @api.depends("timetable_ids.state")
     def _compute_started_lessons_count(self):
         for rec in self:
@@ -162,12 +300,16 @@ class EduGroup(models.Model):
     def _compute_module_boundary(self):
         config = self.env["edu.config"].get_config()
         lpm = config.lessons_per_module or 12
+        mjl = config.max_join_lesson or 4
         for rec in self:
             started = len(rec.timetable_ids.filtered(lambda t: t.state in ["in_progress", "completed"]))
             course_offset = (rec.start_lesson_number or 1) - 1 + started
             position = course_offset % lpm
             rec.is_at_module_start = (position == 0)
             rec.lessons_until_next_module = 0 if position == 0 else (lpm - position)
+            rec.lessons_into_current_module = position
+            rec.max_join_lesson = mjl
+            rec.can_add_student_now = (position < mjl)
 
 
     @api.onchange("start_date", "lesson_days", "lesson_count", "use_lesson_count")
@@ -273,17 +415,23 @@ class EduGroup(models.Model):
     def action_add_student_midgroup(self):
         """Open wizard to add a student to this running group from a specific date.
 
-        Only allowed when the group is positioned at a module boundary — i.e.
-        the next lesson starts a fresh module. This keeps finance clean
-        (a mid-joiner always begins paying from a whole module, never half a one).
+        Only allowed while the group is within the first max_join_lesson lessons
+        of its current module (default: 4). The joiner is enrolled into the
+        group's CURRENT module with the group's current lesson count, so their
+        module/payment tracking stays in sync with the group.
         """
         self.ensure_one()
-        if not self.is_at_module_start:
+        if not self.can_add_student_now:
             raise UserError(_(
                 "Bu guruhga hozir yangi o'quvchi qo'shib bo'lmaydi. "
-                "Guruh modul boshlanishida bo'lishi kerak. "
-                "Keyingi modulgacha %s ta dars qoldi."
-            ) % self.lessons_until_next_module)
+                "Joriy modulda %(done)s ta dars o'tib bo'lgan — o'quvchini faqat "
+                "modulning birinchi %(limit)s ta darsi ichida qo'shish mumkin. "
+                "Keyingi modulgacha %(left)s ta dars qoldi."
+            ) % {
+                "done": self.lessons_into_current_module,
+                "limit": self.max_join_lesson,
+                "left": self.lessons_until_next_module,
+            })
         return {
             'name': _("Guruhga O'quvchi Qo'shish"),
             'type': 'ir.actions.act_window',
@@ -294,6 +442,52 @@ class EduGroup(models.Model):
                 'default_group_id': self.id,
             },
         }
+
+    def _module_position_for_lesson(self, lesson_number):
+        """Map a 1-based course lesson number to (edu.module, position_in_module).
+
+        position_in_module = how many lessons of that module are already behind the
+        given lesson (0 => the lesson starts a fresh module). Falls back to the first
+        module when the computed sequence has no matching edu.module record."""
+        self.ensure_one()
+        config = self.env["edu.config"].get_config()
+        lpm = config.lessons_per_module or 12
+        course_offset = (lesson_number or 1) - 1
+        module_seq = course_offset // lpm + 1
+        position_in_module = course_offset % lpm
+        module = self.env["edu.module"].search([("sequence", "=", module_seq)], limit=1)
+        if not module:
+            module = self.env["edu.module"].search([], order="sequence asc", limit=1)
+        return module, position_in_module
+
+    def write(self, vals):
+        res = super().write(vals)
+        # When the group's starting lesson changes, its students' current module was
+        # snapshotted at create-time from the OLD value and is now stale. Re-baseline
+        # the students that haven't advanced past their starting module yet.
+        if "start_lesson_number" in vals:
+            self._sync_students_starting_module()
+        return res
+
+    def _sync_students_starting_module(self):
+        """Re-point student lines to the module implied by the group's start_lesson_number.
+
+        Only touches lines still at their original starting module (current == starting),
+        so groups already in progress don't lose per-student module advancement."""
+        for group in self:
+            module, position = group._module_position_for_lesson(group.start_lesson_number)
+            if not module:
+                continue
+            lines = group.student_line_ids.filtered(
+                lambda l: l.state != "cancelled"
+                and (not l.current_module_id or l.current_module_id == l.starting_module_id)
+            )
+            for line in lines:
+                line.write({
+                    "current_module_id": module.id,
+                    "starting_module_id": module.id,
+                    "lessons_in_current_module": position if (group.start_lesson_number or 1) > 1 else 0,
+                })
 
     def action_start(self):
         """Change state to running"""
@@ -306,6 +500,33 @@ class EduGroup(models.Model):
     def action_running(self):
         """Restart course - change state back to running"""
         self.write({'state': 'running'})
+
+    # Group administration is not the teacher's job: teachers keep read access
+    # (record rule) and the chatter, but the fields that define the group and
+    # its schedule are locked for them.
+    TEACHER_PROTECTED_FIELDS = {
+        "name", "course_id", "teacher_id", "extra_teacher_id", "lesson_room",
+        "group_color", "start_date", "end_date", "lesson_start", "lesson_end",
+        "lesson_count", "use_lesson_count", "start_lesson_number",
+        "lesson_days", "lesson_start_time", "lesson_duration",
+        "state", "active", "company_id",
+    }
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        if teacher_locked(self.env):
+            raise AccessError(_("O'qituvchi yangi guruh yarata olmaydi. Bu administratsiya vazifasi."))
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if teacher_locked(self.env):
+            blocked = self.TEACHER_PROTECTED_FIELDS & set(vals)
+            if blocked:
+                raise AccessError(_(
+                    "O'qituvchi guruh sozlamalarini o'zgartira olmaydi (%s). Bu administratsiya vazifasi.",
+                    ", ".join(sorted(blocked)),
+                ))
+        return super().write(vals)
 
 
     attendance_count = fields.Integer(
@@ -324,27 +545,18 @@ class EduGroup(models.Model):
             ])
 
     def action_view_group_attendance_timeline(self):
-        """
-        Opens the student attendance timeline (week view by default).
-        Rows = students, blocks = lessons colored by attendance status.
+        """Open the attendance matrix (OWL grid replicating the Davomat
+        Google Sheet): rows = students, columns = lessons per module, cells =
+        Bor/Yo'q with per-lesson % and per-module summaries. Replaces the old
+        OCA web_timeline view; method name kept so existing buttons/refs work.
         """
         self.ensure_one()
         return {
             "name": _("Davomat - %s") % self.name,
-            "type": "ir.actions.act_window",
-            "res_model": "edu.group.student.lesson.report",
-            "view_mode": "timeline,list",
-            "views": [
-                (self.env.ref(
-                    "ustudy_group.view_edu_student_lesson_report_timeline"
-                ).id, "timeline"),
-                (False, "list"),
-            ],
-            "domain": [("group_id", "=", self.id)],
-            "context": {
-                "default_group_id": self.id,
-                # DO NOT pass search_default_group_id — not a field on report model
-            },
+            "type": "ir.actions.client",
+            "tag": "ustudy_group.davomat_matrix",
+            "params": {"group_id": self.id},
+            "context": {"group_id": self.id},
         }
 
 
@@ -385,7 +597,57 @@ class EduGroupStudent(models.Model):
         related="student_id.total_courses",
         store=False,
     )
-    
+
+    @api.constrains("group_id", "student_id")
+    def _check_unique_student_per_group(self):
+        """A student may appear in a group only once. Guards every path
+        (group form One2many, wizard, imports), not just the add wizard."""
+        for rec in self:
+            if not rec.group_id or not rec.student_id:
+                continue
+            duplicate = self.search_count([
+                ("id", "!=", rec.id),
+                ("group_id", "=", rec.group_id.id),
+                ("student_id", "=", rec.student_id.id),
+            ])
+            if duplicate:
+                raise ValidationError(_(
+                    "%(student)s allaqachon %(group)s guruhida mavjud. "
+                    "Bir o'quvchi bir guruhga faqat bir marta qo'shiladi.",
+                    student=rec.student_id.name,
+                    group=rec.group_id.name,
+                ))
+
+    # ---------------------------------------------------------------
+    # Per-enrollment payment standing. Reused by res.partner to show the
+    # student's active enrollment on the "Talabalar ro'yxati" list.
+    # ---------------------------------------------------------------
+    lesson_balance = fields.Integer(
+        string="To'lov statusi",
+        compute="_compute_lesson_balance",
+        store=False,
+        help="Signed lesson balance: paid lessons minus passed lessons. "
+             "Negative => qarzdor, positive => haqdor.",
+    )
+    payment_health = fields.Selection(
+        [
+            ("debtor", "Qarzdor"),
+            ("paid", "Haqdor"),
+        ],
+        string="To'lov holati",
+        compute="_compute_lesson_balance",
+        store=False,
+        help="Qarzdor (qizil) when the student owes lessons, Haqdor (yashil) "
+             "when paid lessons cover the passed lessons.",
+    )
+
+    @api.depends("paid_lessons_count", "passed_lessons_count")
+    def _compute_lesson_balance(self):
+        for rec in self:
+            balance = rec.paid_lessons_count - rec.passed_lessons_count
+            rec.lesson_balance = balance
+            rec.payment_health = "debtor" if balance < 0 else "paid"
+
     # Module Payment Fields
     # current_module = fields.Integer(
     #     string="Current Module",
@@ -431,7 +693,7 @@ class EduGroupStudent(models.Model):
 
     debt_status = fields.Selection(
         [
-            ('paid', "To'langan"),
+            ('paid', "Haqdor"),
             ('debtor', "Qarzdor"),
         ],
         string="To'lov holati",
@@ -439,10 +701,12 @@ class EduGroupStudent(models.Model):
         store=False,
     )
 
-    @api.depends("debt_lessons_count", "paid_lessons_count")
+    @api.depends("passed_lessons_count", "paid_lessons_count")
     def _compute_debt_status(self):
         for rec in self:
-            rec.debt_status = 'debtor' if rec.debt_lessons_count > rec.paid_lessons_count else 'paid'
+            # Qarzdor only when passed (given) lessons exceed paid lessons.
+            # When paid covers or equals passed lessons => haqdor.
+            rec.debt_status = 'debtor' if rec.passed_lessons_count > rec.paid_lessons_count else 'paid'
     
     state = fields.Selection(
         [
@@ -537,29 +801,60 @@ class EduGroupStudent(models.Model):
     
     
     def _compute_paid_amount_total(self):
+        # Model-existence guard: during ustudy_group's own upgrade phase the
+        # registry doesn't contain the finance models yet (they load later in
+        # the module graph), and stored-field recomputes can reach this.
+        if "cc.payment.type" not in self.env or "cc.finance" not in self.env:
+            for rec in self:
+                rec.paid_amount_total = 0.0
+            return
         payment_type = self.env['cc.payment.type'].search([
             ('code', '=', 'student_module'),
             ('type_category', '=', 'student')
         ], limit=1)
         has_link = "student_line_id" in self.env["cc.finance"]._fields
 
-        for rec in self:
-            if not payment_type or not has_link or not rec.id:
+        line_ids = [rec.id for rec in self if rec.id]
+        if not payment_type or not has_link or not line_ids:
+            for rec in self:
                 rec.paid_amount_total = 0.0
-                continue
+            return
 
-            domain = [
-                ("student_line_id", "=", rec.id),
+        # One query for the whole batch. The per-line starting-module scope
+        # (see _get_module_scope_domain) is applied in Python from the
+        # fetched module sequence, keeping the same semantics: records with
+        # no module always count, others only from the starting module on.
+        payments = self.env["cc.finance"].search_read(
+            [
+                ("student_line_id", "in", line_ids),
                 ("payment_type_id", "=", payment_type.id),
                 ("transaction_type", "=", "income"),
                 ("state", "=", "confirmed"),
-            ]
-            # Hide past-module payments for mid-joiners (shouldn't normally exist,
-            # but excluded for safety so the per-lesson conversion stays consistent).
-            domain += rec._get_module_scope_domain()
+            ],
+            ["student_line_id", "amount", "module_id"],
+        )
+        module_ids = list({p["module_id"][0] for p in payments if p["module_id"]})
+        seq_by_module = {
+            m["id"]: m["sequence"]
+            for m in self.env["edu.module"].browse(module_ids).read(["sequence"])
+        }
+        payments_by_line = {}
+        for p in payments:
+            payments_by_line.setdefault(p["student_line_id"][0], []).append(p)
 
-            payments = self.env["cc.finance"].search(domain)
-            rec.paid_amount_total = sum(payments.mapped("amount"))
+        for rec in self:
+            rows = payments_by_line.get(rec.id) or ()
+            min_seq = rec.starting_module_id.sequence if rec.starting_module_id else None
+            total = 0.0
+            for p in rows:
+                if (
+                    min_seq is not None
+                    and p["module_id"]
+                    and seq_by_module.get(p["module_id"][0], 0) < min_seq
+                ):
+                    continue
+                total += p["amount"]
+            rec.paid_amount_total = total
 
     def _get_module_scope_domain(self):
         """Return a cc.finance domain fragment limiting records to modules at or after
@@ -596,16 +891,32 @@ class EduGroupStudent(models.Model):
     def _compute_attended_lessons_count(self):
         AttendanceLine = self.env["edu.attendance.line"]
 
-        for rec in self:
-            domain = [
-                ("student_id", "=", rec.student_id.id),
-                ("attendance_id.group_id", "=", rec.group_id.id),
+        student_ids = list({rec.student_id.id for rec in self if rec.student_id})
+        group_ids = list({rec.group_id.id for rec in self if rec.group_id})
+        # One search for the whole batch; per-line enrollment_date cut-off is
+        # applied in Python (attendance_date is a Date field).
+        dates_by_pair = {}
+        if student_ids and group_ids:
+            lines = AttendanceLine.search([
+                ("student_id", "in", student_ids),
+                ("attendance_id.group_id", "in", group_ids),
                 ("attendance_id.state", "=", "confirmed"),
                 ("status", "=", "present"),
-            ]
+            ])
+            for line in lines:
+                key = (line.student_id.id, line.attendance_id.group_id.id)
+                dates_by_pair.setdefault(key, []).append(
+                    line.attendance_id.attendance_date
+                )
+
+        for rec in self:
+            dates = dates_by_pair.get((rec.student_id.id, rec.group_id.id), ())
             if rec.enrollment_date:
-                domain.append(("attendance_id.attendance_date", ">=", rec.enrollment_date))
-            rec.attended_lessons_count = AttendanceLine.search_count(domain)
+                rec.attended_lessons_count = sum(
+                    1 for d in dates if d and d >= rec.enrollment_date
+                )
+            else:
+                rec.attended_lessons_count = len(dates)
 
     def _compute_passed_lessons(self):
         Timetable = self.env["edu.timetable"]
@@ -613,20 +924,36 @@ class EduGroupStudent(models.Model):
         lpm = config.lessons_per_module or 12
         per_lesson = (config.module_price / lpm) if lpm else 0.0
 
+        group_ids = list({rec.group_id.id for rec in self if rec.group_id})
+        # One query for all groups in the batch; the per-line
+        # enrollment_date cut-off is applied in Python (both Date fields).
+        dates_by_group = {}
+        if group_ids:
+            rows = Timetable.search_read(
+                [
+                    ("group_id", "in", group_ids),
+                    ("state", "in", ["in_progress", "completed"]),
+                ],
+                ["group_id", "start_date"],
+            )
+            for row in rows:
+                dates_by_group.setdefault(row["group_id"][0], []).append(
+                    row["start_date"]
+                )
+
         for rec in self:
             if not rec.group_id:
                 rec.passed_lessons_count = 0
                 rec.passed_lessons_amount = 0.0
                 continue
 
-            domain = [
-                ("group_id", "=", rec.group_id.id),
-                ("state", "in", ["in_progress", "completed"]),
-            ]
+            dates = dates_by_group.get(rec.group_id.id, ())
             if rec.enrollment_date:
-                domain.append(("start_date", ">=", rec.enrollment_date))
-
-            count = Timetable.search_count(domain)
+                # Mirrors the SQL domain ("start_date", ">=", date): rows
+                # with NULL start_date never match a >= comparison.
+                count = sum(1 for d in dates if d and d >= rec.enrollment_date)
+            else:
+                count = len(dates)
             rec.passed_lessons_count = count
             rec.passed_lessons_amount = count * per_lesson
 
@@ -643,23 +970,30 @@ class EduGroupStudent(models.Model):
 
     def _compute_student_balance(self):
         # student_line_id was added on cc.finance by ustudy_group_finance. Guard so
-        # this still computes (as 0) when that module isn't installed.
-        has_link = "student_line_id" in self.env["cc.finance"]._fields
+        # this still computes (as 0) when that module isn't installed — and check
+        # the model itself first: it is absent during ustudy_group's upgrade phase.
+        has_link = (
+            "cc.finance" in self.env
+            and "student_line_id" in self.env["cc.finance"]._fields
+        )
+        line_ids = [rec.id for rec in self if rec.id]
+        balances = {}
+        if has_link and line_ids:
+            rows = self.env["cc.finance"].search_read(
+                [
+                    ("student_line_id", "in", line_ids),
+                    ("state", "=", "confirmed"),
+                ],
+                ["student_line_id", "amount", "transaction_type"],
+            )
+            for row in rows:
+                line_id = row["student_line_id"][0]
+                if row["transaction_type"] == "income":
+                    balances[line_id] = balances.get(line_id, 0.0) + row["amount"]
+                elif row["transaction_type"] == "expense":
+                    balances[line_id] = balances.get(line_id, 0.0) - row["amount"]
         for rec in self:
-            if not has_link or not rec.id:
-                rec.student_balance = 0.0
-                continue
-            payments = self.env["cc.finance"].search([
-                ("student_line_id", "=", rec.id),
-                ("state", "=", "confirmed"),
-            ])
-            balance = 0.0
-            for p in payments:
-                if p.transaction_type == "income":
-                    balance += p.amount
-                elif p.transaction_type == "expense":
-                    balance -= p.amount
-            rec.student_balance = balance
+            rec.student_balance = balances.get(rec.id, 0.0)
 
     
     finance_count = fields.Integer(
@@ -668,6 +1002,10 @@ class EduGroupStudent(models.Model):
     )
 
     def _compute_finance_count(self):
+        if "cc.payment.type" not in self.env or "cc.finance" not in self.env:
+            for rec in self:
+                rec.finance_count = 0
+            return
         payment_type = self.env['cc.payment.type'].search([
             ('code', '=', 'student_module'),
             ('type_category', '=', 'student')
@@ -746,19 +1084,9 @@ class EduGroupStudent(models.Model):
             if group and vals.get('company_id') is None:
                 vals['company_id'] = group.company_id.id
 
-            if not vals.get("current_module_id"):
-                start_lesson = (group.start_lesson_number or 1) if group else 1
-                config = self.env['edu.config'].get_config()
-                lpm = config.lessons_per_module or 12
-
-                # 0-based offset into the full course lesson list
-                course_offset = start_lesson - 1
-                module_seq = course_offset // lpm + 1          # 1-based module sequence
-                position_in_module = course_offset % lpm       # lessons already "done" in that module
-
-                module = self.env["edu.module"].search([("sequence", "=", module_seq)], limit=1)
-                if not module:
-                    module = self.env["edu.module"].search([], order="sequence asc", limit=1)
+            if not vals.get("current_module_id") and group:
+                start_lesson = group.start_lesson_number or 1
+                module, position_in_module = group._module_position_for_lesson(start_lesson)
 
                 if module:
                     vals["current_module_id"] = module.id
@@ -894,6 +1222,34 @@ class EduGroupStudent(models.Model):
             self.write({
                 "lessons_in_current_module": new_lesson_count
             })
+
+    def decrement_lesson_count(self):
+        """Reverse one increment_lesson_count step (attendance reset to draft).
+
+        Mirrors the advance logic: steps back within the module, or back into
+        the previous module (at its last lesson) when the increment had just
+        advanced it. Payment flags cleared by the advance cannot be restored —
+        acceptable, resets normally happen right after a wrong confirm."""
+        self.ensure_one()
+
+        config = self.env['edu.config'].get_config()
+        count = self.lessons_in_current_module
+
+        if count > 1:
+            self.write({"lessons_in_current_module": count - 1})
+        elif count == 1 and self.current_module_id and self.current_module_id != self.starting_module_id:
+            prev_module = self.env["edu.module"].search([
+                ("sequence", "=", self.current_module_id.sequence - 1)
+            ], limit=1)
+            if prev_module:
+                self.write({
+                    "current_module_id": prev_module.id,
+                    "lessons_in_current_module": config.lessons_per_module,
+                })
+            else:
+                self.write({"lessons_in_current_module": 0})
+        else:
+            self.write({"lessons_in_current_module": max(count - 1, 0)})
 
     _sql_constraints = [
         (

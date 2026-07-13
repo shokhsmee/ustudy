@@ -18,42 +18,49 @@
                             <div class="col-md-6 col-lg-4">
                                 <div class="card h-100 shadow-sm">
                                     <div class="card-body">
+                                        <!-- 1. Guruhi -->
                                         <h6 class="card-title fw-bold mb-1">
                                             <span t-esc="g['group_name']"/>
                                         </h6>
+                                        <!-- 3. Qaysi kurs bog'langani -->
                                         <div class="text-muted small mb-2">
                                             <span t-esc="g['course_name']"/>
                                         </div>
-                                        <t t-if="g['starting_module']">
-                                            <div class="small">
-                                                <span class="text-muted">Boshlangan modul:</span>
-                                                <span class="fw-semibold" t-esc="g['starting_module']"/>
-                                            </div>
-                                        </t>
-                                        <t t-if="g['enrollment_date']">
-                                            <div class="small mb-2">
-                                                <span class="text-muted">Qo‘shilgan sana:</span>
-                                                <span class="fw-semibold" t-esc="g['enrollment_date']"/>
-                                            </div>
-                                        </t>
-                                        <div class="d-flex justify-content-between small">
-                                            <span class="text-muted">O‘tilgan darslar:</span>
-                                            <span t-esc="g['passed_lessons']"/>
+                                        <!-- 2. Ustozi va mentori -->
+                                        <div class="small">
+                                            <span class="text-muted">Ustoz:</span>
+                                            <span class="fw-semibold" t-esc="g['teacher_name'] or '—'"/>
                                         </div>
+                                        <div class="small mb-2">
+                                            <span class="text-muted">Mentor:</span>
+                                            <span class="fw-semibold" t-esc="g['mentor_name'] or '—'"/>
+                                        </div>
+                                        <!-- 5. To'langan darslar soni -->
                                         <div class="d-flex justify-content-between small">
                                             <span class="text-muted">To‘langan darslar:</span>
                                             <span t-esc="g['paid_lessons']"/>
                                         </div>
+                                        <!-- 6. O'tilgan darslar soni -->
+                                        <div class="d-flex justify-content-between small">
+                                            <span class="text-muted">O‘tilgan darslar:</span>
+                                            <span t-esc="g['passed_lessons']"/>
+                                        </div>
+                                        <!-- 7. Qarz darslar soni -->
                                         <div class="d-flex justify-content-between small">
                                             <span class="text-muted">Qarz darslar:</span>
                                             <span t-esc="g['debt_lessons']"/>
                                         </div>
                                         <hr class="my-2"/>
+                                        <!-- 4. To'lov holati (qarzdorlik) -->
                                         <div class="d-flex justify-content-between align-items-center">
-                                            <span class="text-muted small">Qarz summasi:</span>
+                                            <span class="text-muted small">To‘lov holati:</span>
                                             <span t-attf-class="badge fs-6 #{'bg-danger' if g['debt_amount'] &gt; 0 else 'bg-success'}">
-                                                <span t-esc="g['debt_amount']"
-                                                      t-options="{'widget': 'monetary', 'display_currency': currency}"/>
+                                                <t t-if="g['debt_amount'] &gt; 0">
+                                                    Qarzdor:
+                                                    <span t-esc="g['debt_amount']"
+                                                          t-options="{'widget': 'monetary', 'display_currency': currency}"/>
+                                                </t>
+                                                <t t-else="">Qarzi yo‘q</t>
                                             </span>
                                         </div>
                                     </div>

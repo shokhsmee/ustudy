@@ -36,4 +36,19 @@
 
     </template>
 
+    <!--
+        Hide the stock portal "Addresses" (Manzillar) and "Connection &
+        Security" (Ulanish & Xavfsizlik) cards. They live alone in the
+        #portal_common_category container (the Vazifalar/Hisobotlar cards are
+        added to the parent row, not here), so hiding the container removes
+        only those two.
+    -->
+    <template id="portal_my_home_hide_common"
+              inherit_id="portal.portal_my_home"
+              name="Hide Addresses &amp; Security cards">
+        <xpath expr="//div[@id='portal_common_category']" position="attributes">
+            <attribute name="class" add="d-none" separator=" "/>
+        </xpath>
+    </template>
+
 </odoo>

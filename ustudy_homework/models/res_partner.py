@@ -116,10 +116,6 @@ class ResPartner(models.Model):
             "ustudy_homework.view_edu_student_lesson_report_list",
             raise_if_not_found=False
         )
-        timeline_view = self.env.ref(
-            "ustudy_homework.view_edu_student_lesson_report_timeline",
-            raise_if_not_found=False
-        )
 
         action = {
             "name": _("Vazifalar"),
@@ -127,13 +123,11 @@ class ResPartner(models.Model):
             "res_model": "edu.student.lesson.report",
             "domain": [("student_id", "=", self.id)],
             "context": {"default_student_id": self.id},
-            "view_mode": "list,timeline",
+            "view_mode": "list",
         }
 
         if list_view:
             action["views"] = [(list_view.id, "list")]
-        if timeline_view:
-            action["views"] = action.get("views", []) + [(timeline_view.id, "timeline")]
 
         return action
     

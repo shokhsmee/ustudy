@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="ustudy_group.RoomBandlikRenderer">
+        <div class="o_room_bandlik o_rb_grid">
+            <table class="o_rb_table table table-bordered mb-0">
+                <thead>
+                    <tr>
+                        <th class="o_rb_corner o_rb_room_head">Xona</th>
+                        <t t-foreach="model.days" t-as="day" t-key="day.toISODate()">
+                            <th class="o_rb_day_head text-center">
+                                <div class="o_rb_day_name" t-esc="day.toFormat('cccc')"/>
+                                <div class="o_rb_day_date text-muted small"
+                                     t-esc="day.toFormat('dd MMM')"/>
+                            </th>
+                        </t>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr t-if="!model.rooms.length">
+                        <td t-att-colspan="model.days.length + 1"
+                            class="text-center text-muted p-4">
+                            Xonalar topilmadi
+                        </td>
+                    </tr>
+                    <tr t-foreach="model.rooms" t-as="room" t-key="room.id">
+                        <th class="o_rb_room_name" t-esc="room.name"/>
+                        <td t-foreach="model.days" t-as="day" t-key="day.toISODate()"
+                            class="o_rb_cell">
+                            <div class="o_rb_lessons">
+                                <t t-foreach="cell(room.id, day)" t-as="lesson"
+                                   t-key="lesson.id">
+                                    <div class="o_rb_lesson" t-att-class="lesson.stateClass"
+                                         t-att-title="lesson.time + ' · ' + lesson.group"
+                                         t-on-click="() => props.onOpen(lesson.id)">
+                                        <span class="o_rb_lesson_time" t-esc="lesson.time"/>
+                                        <span class="o_rb_lesson_group" t-esc="lesson.group"/>
+                                        <small t-if="lesson.teacher" class="o_rb_lesson_teacher"
+                                               t-esc="lesson.teacher"/>
+                                    </div>
+                                </t>
+                            </div>
+                            <button class="btn btn-sm o_rb_add"
+                                    t-on-click="() => props.onAdd(room.id, day)"
+                                    title="Dars qo'shish">
+                                <i class="fa fa-plus"/>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </t>
+
+</templates>

@@ -42,6 +42,12 @@
                                 <span class="text-muted">Freeze at lesson</span>
                                 <field name="full_payment_lesson" class="oe_inline"/>
                             </div>
+
+                            <label for="max_join_lesson"/>
+                            <div class="o_row">
+                                <span class="text-muted">Join allowed until lesson</span>
+                                <field name="max_join_lesson" class="oe_inline"/>
+                            </div>
                         </group>
                     </group>
                     
@@ -115,13 +121,21 @@
         <field name="code">action = env['edu.config'].action_open_config()</field>
     </record>
 
-    <!-- Menu Item under Settings -->
-    <menuitem 
+    <!-- Sozlamalar: container submenu (children: Konfiguratsiya here,
+         Xonalar + Modullar re-parented in menu.xml) -->
+    <menuitem
         id="menu_edu_config"
         name="Sozlamalar"
         parent="ustudy_group.menu_edu_root"
-        action="action_edu_config_server"
         sequence="100"
+        groups="base.group_system"/>
+
+    <menuitem
+        id="menu_edu_config_settings"
+        name="Konfiguratsiya"
+        parent="menu_edu_config"
+        action="action_edu_config_server"
+        sequence="10"
         groups="base.group_system"/>
 
 </odoo>

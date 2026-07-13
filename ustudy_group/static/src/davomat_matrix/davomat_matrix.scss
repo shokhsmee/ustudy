@@ -1,0 +1,221 @@
+// Davomat matrix — Google-Sheet-flavored attendance grid.
+$dm-head: #3d85c6;
+$dm-head-dark: #2a5d8f;
+$dm-green: #38a853;
+$dm-red: #e8443a;
+$dm-gray: #b7b7b7;
+$dm-side: #fff2cc;
+
+.o_davomat_matrix {
+    height: 100%;
+    overflow: auto;
+    background: #f4f6f9;
+    padding: 10px 12px;
+
+    .o_dm_loading {
+        padding: 24px;
+        font-size: 15px;
+        color: #6c757d;
+    }
+
+    // KPI cards reuse the group form's o_group_mini_dashboard styles;
+    // slightly more compact here so the grid keeps the focus.
+    .o_dm_dashboard {
+        margin-bottom: 10px;
+
+        .o_group_kpi_card {
+            padding: 0.6rem 1rem;
+            background: #fff;
+            border: 1px solid #d8dde3;
+        }
+
+        .o_group_kpi_value {
+            font-size: 1.9rem;
+        }
+    }
+
+    .o_dm_toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #fff;
+        border: 1px solid #d8dde3;
+        border-radius: 8px;
+        padding: 6px 10px;
+        margin-bottom: 10px;
+        position: sticky;
+        left: 0;
+
+        .o_dm_toolbar_label {
+            font-weight: 700;
+            font-size: 14px;
+            min-width: 160px;
+            text-align: center;
+        }
+
+        .o_dm_back_btn {
+            margin-right: auto;
+        }
+    }
+
+    .o_dm_table {
+        border-collapse: collapse;
+        background: #fff;
+        width: max-content;
+        min-width: 100%;
+
+        th,
+        td {
+            border: 1px solid #9db2c8;
+            padding: 3px 6px;
+            font-size: 12px;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .o_dm_group_head {
+            background: $dm-side;
+            font-size: 13px;
+            font-weight: 700;
+            text-align: left;
+        }
+
+        .o_dm_module_head {
+            background: $dm-head-dark;
+            color: #fff;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .o_dm_subhead {
+            background: #f8d7da;
+            font-weight: 600;
+            text-align: left;
+        }
+
+        .o_dm_pct_label {
+            background: #f4cccc;
+        }
+
+        .o_dm_date,
+        .o_dm_teacher {
+            background: #eef3fa;
+            font-weight: 400;
+            font-size: 11px;
+            max-width: 110px;
+            white-space: normal;
+        }
+
+        .o_dm_dars {
+            background: $dm-head;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .o_dm_col_label {
+            background: $dm-head;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .o_dm_pct {
+            background: #eef3fa;
+            font-weight: 600;
+        }
+
+        .o_dm_summary_head {
+            background: #eef3fa;
+            font-weight: 700;
+            white-space: normal;
+            min-width: 150px;
+            vertical-align: top;
+
+            .o_dm_teacher_totals {
+                font-weight: 400;
+                font-size: 11px;
+                margin-top: 4px;
+                text-align: left;
+            }
+        }
+
+        .o_dm_id {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+
+        .o_dm_name {
+            text-align: left;
+            min-width: 190px;
+            font-weight: 600;
+        }
+
+        .o_dm_removed {
+            min-width: 110px;
+        }
+
+        .o_dm_row_cancelled .o_dm_name {
+            background: $dm-red;
+            color: #fff;
+        }
+
+        .o_dm_cell {
+            min-width: 64px;
+            font-weight: 600;
+        }
+
+        .o_dm_cell_present {
+            background: $dm-green;
+            color: #fff;
+        }
+
+        .o_dm_cell_absent {
+            background: $dm-red;
+            color: #fff;
+        }
+
+        .o_dm_cell_na {
+            background: $dm-gray;
+        }
+
+        .o_dm_summary {
+            font-size: 11px;
+            white-space: normal;
+            min-width: 150px;
+            text-align: left;
+        }
+
+        .o_dm_badge {
+            padding: 1px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            background: #e2e3e5;
+        }
+
+        .o_dm_badge_active {
+            background: #d1e7dd;
+            color: #0f5132;
+        }
+
+        .o_dm_badge_frozen {
+            background: #fff3cd;
+            color: #664d03;
+        }
+
+        .o_dm_badge_cancelled {
+            background: #f8d7da;
+            color: #842029;
+        }
+
+        .o_dm_badge_completed {
+            background: #cfe2ff;
+            color: #084298;
+        }
+    }
+}

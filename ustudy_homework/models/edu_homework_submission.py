@@ -32,6 +32,7 @@ class EduHomeworkSubmission(models.Model):
 
     state = fields.Selection(
         [
+            ("not_submitted", "Not submitted"),
             ("submitted", "Submitted"),
             ("graded", "Passed"),
             ("failed", "Failed"),
@@ -40,6 +41,27 @@ class EduHomeworkSubmission(models.Model):
         string="Status",
         tracking=True,
     )
+
+    # Number of submissions this student made for this homework. >1 means the
+    # student resubmitted. Used by the timetable Vazifalar roster to flag
+    # resubmissions (the roster collapses to one row per student).
+    attempt_count = fields.Integer(
+        string="Attempts",
+        compute="_compute_attempt_count",
+        store=False,
+    )
+
+    def _compute_attempt_count(self):
+        for rec in self:
+            # In-memory placeholder rows (students with no submission yet) have
+            # no real id; they represent zero attempts.
+            if not isinstance(rec.id, int):
+                rec.attempt_count = 0
+                continue
+            rec.attempt_count = self.search_count([
+                ("homework_id", "=", rec.homework_id.id),
+                ("student_id", "=", rec.student_id.id),
+            ])
 
     # used for correct ordering (submitted -> graded -> failed)
     state_seq = fields.Integer(
@@ -52,6 +74,7 @@ class EduHomeworkSubmission(models.Model):
     @api.depends("state")
     def _compute_state_seq(self):
         mapping = {
+            "not_submitted": -1,
             "submitted": 0,
             "graded": 1,
             "failed": 2,
@@ -90,23 +113,34 @@ class EduHomeworkSubmission(models.Model):
         return "graded" if mark >= pass_mark else "failed"
 
     def _award_xp(self):
-        """Award gamification XP (karma) equal to the mark, once per submission.
+        """Keep gamification XP (karma) in sync with the submission mark.
 
-        XP = the mark. Granted only when the submission is passed ('graded')
-        and never granted twice, even if the submission is re-graded later."""
+        XP mirrors the mark while the submission is passed ('graded'), and is 0
+        otherwise. On every (re)grade we adjust the user's karma by the delta
+        against what was previously awarded (tracked in ``xp_amount``), so
+        updating the ball updates the XP, and dropping below the pass mark
+        removes it. Karma is never pushed below 0.
+
+        NB: gamification.karma.tracking.origin_ref is a Reference whose selection
+        only allows registered models (res.users by default); edu.homework is not
+        one, so we pass the homework name via ``reason`` rather than as origin."""
         for rec in self:
-            if rec.xp_awarded or rec.state != "graded":
-                continue
             user = rec.user_id
             if not user:
                 continue
-            points = int(round(rec.mark or 0.0))
-            if points <= 0:
+            target = int(round(rec.mark or 0.0)) if rec.state == "graded" else 0
+            if target < 0:
+                target = 0
+            delta = target - (rec.xp_amount or 0)
+            if delta == 0:
                 continue
-            reason = _("Homework passed: %s") % (rec.homework_id.name or rec.homework_id.id)
-            user.sudo()._add_karma(points, rec.homework_id, reason)
-            rec.xp_awarded = True
-            rec.xp_amount = points
+            if delta < 0:
+                delta = max(delta, -user.karma)  # never push karma below 0
+            if delta:
+                reason = _("Homework XP: %s") % (rec.homework_id.name or rec.homework_id.id)
+                user.sudo()._add_karma(delta, reason=reason)
+            rec.xp_amount = target
+            rec.xp_awarded = bool(target)
 
     # -------------------------
     # Create / Write
@@ -131,9 +165,9 @@ class EduHomeworkSubmission(models.Model):
                 update_vals = dict(vals, state=new_state)
                 super(EduHomeworkSubmission, rec).write(update_vals)
 
-                # Award XP (karma) once when the submission becomes passed
-                if new_state == "graded":
-                    rec._award_xp()
+                # Re-sync XP (karma) with the new mark/state on every grade,
+                # so updating the ball updates the XP (and failing removes it).
+                rec._award_xp()
 
                 # Auto-complete slide when homework passed
                 if new_state == "graded" and rec.homework_id.slide_id:

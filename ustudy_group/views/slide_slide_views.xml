@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Expose the per-course lesson number on the slide form so it can be
+         reviewed and manually adjusted. Hidden for category/section headers. -->
+    <record id="view_slide_slide_form_lesson_no" model="ir.ui.view">
+        <field name="name">slide.slide.form.lesson.no</field>
+        <field name="model">slide.slide</field>
+        <field name="inherit_id" ref="website_slides.view_slide_slide_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='lesson_details']/field[@name='channel_id']" position="after">
+                <field name="lesson_no" invisible="is_category"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

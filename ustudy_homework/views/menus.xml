@@ -8,11 +8,12 @@
     <field name="view_mode">list,form</field>
   </record>
 
-  <!-- Assignments: list of homeworks -->
+  <!-- Assignments: list of homeworks, grouped by course by default -->
   <record id="action_edu_homework_list" model="ir.actions.act_window">
     <field name="name">Vazifalar</field>
     <field name="res_model">edu.homework</field>
     <field name="view_mode">list,form</field>
+    <field name="context">{'group_by': 'channel_id'}</field>
   </record>
 
   <!-- Marks: submissions -->

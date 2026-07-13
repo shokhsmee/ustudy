@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="ustudy_group.RoomBandlikView">
+        <div class="o_room_bandlik_view h-100 d-flex flex-column" t-ref="root">
+            <Layout display="props.display" className="'o_room_bandlik_layout'">
+                <t t-set-slot="layout-buttons">
+                    <div class="btn-group me-2" role="group">
+                        <button type="button" class="btn btn-secondary"
+                                t-on-click="() => this.prevWeek()" title="Oldingi hafta">
+                            <i class="fa fa-chevron-left"/>
+                        </button>
+                        <button type="button" class="btn btn-secondary"
+                                t-on-click="() => this.today()">Bugun</button>
+                        <button type="button" class="btn btn-secondary"
+                                t-on-click="() => this.nextWeek()" title="Keyingi hafta">
+                            <i class="fa fa-chevron-right"/>
+                        </button>
+                    </div>
+                    <span class="o_rb_week_label fw-bold mx-2 align-self-center"
+                          t-esc="model.weekLabel"/>
+                </t>
+                <t t-set-slot="layout-actions">
+                    <SearchBar t-if="searchBarToggler.state.showSearchBar"/>
+                </t>
+                <RoomBandlikRenderer t-props="rendererProps"/>
+            </Layout>
+        </div>
+    </t>
+
+</templates>

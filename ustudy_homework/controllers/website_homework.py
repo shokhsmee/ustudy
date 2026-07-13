@@ -14,9 +14,14 @@ class WebsiteEduHomework(http.Controller):
         if not hw.exists() or not hw.is_published:
             return request.not_found()
 
+        # Gate by lesson start: hide content until the student's group has
+        # started the lesson this homework belongs to.
+        locked = not hw.is_visible_for(request.env.user)
+
         values = {
             'homework': hw,
             'slide': hw.slide_id.sudo() if hw.slide_id else False,
+            'locked': locked,
         }
         return request.render('ustudy_homework.homework_page_template', values)
 
@@ -30,10 +35,16 @@ class WebsiteEduHomework(http.Controller):
         sitemap=False,
     )
     def slide_homeworks_json(self, slide_id, **kw):
-        hw_objs = request.env['edu.homework'].sudo().search([
-            ('slide_id', '=', slide_id),
-            ('is_published', '=', True),
-        ], order='due_date asc')
+        # Only expose this slide's homework once the lesson has been started
+        # for the requesting user's group.
+        slide = request.env['slide.slide'].sudo().browse(slide_id)
+        if not slide.exists() or not slide.lesson_started_for(request.env.user):
+            hw_objs = request.env['edu.homework']
+        else:
+            hw_objs = request.env['edu.homework'].sudo().search([
+                ('slide_id', '=', slide_id),
+                ('is_published', '=', True),
+            ], order='due_date asc')
 
         base_url = request.env['ir.config_parameter'].sudo().get_param('web.base.url') or ''
         result = [{

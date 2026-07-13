@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Add a "Vazifalar" (Homeworks) tab to the timetable form.
+
+        The roster (lesson_report_ids) is a LIVE, read-only list backed by the
+        edu.student.lesson.report SQL view: it always shows EVERY student in the
+        group with their result for THIS lesson's slide-homework (O'tdi / O'tmadi
+        / Yiqildi), without creating placeholder submission rows that would
+        pollute submission counts. Homework only appears when a Dars/Slayd
+        (slide) is selected. Grading is done from the "Baholash" button, which
+        opens the editable submissions list.
+    -->
+    <record id="view_edu_timetable_form_homeworks" model="ir.ui.view">
+        <field name="name">edu.timetable.form.homeworks</field>
+        <field name="model">edu.timetable</field>
+        <field name="inherit_id" ref="ustudy_group.view_edu_timetable_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//page[@name='attendance_lines']" position="after">
+                <page string="Vazifalar" name="homeworks">
+
+                        <!-- No slide chosen: nothing to show for this lesson. -->
+                        <div class="alert alert-warning" role="alert"
+                             invisible="slide_id">
+                            Bu dars uchun "Dars/Slayd" tanlanmagan. Uy vazifasini
+                            ko'rsatish uchun avval dars (slide) ni tanlang.
+                        </div>
+
+                        <!-- Slide chosen, but it has no published homework. -->
+                        <div class="alert alert-info" role="alert"
+                             invisible="not slide_id or homework_id">
+                            Tanlangan dars (slide) uchun uy vazifasi biriktirilmagan.
+                        </div>
+
+                        <group invisible="not slide_id or not homework_id">
+                            <group>
+                                <field name="homework_id" readonly="1"/>
+                                <field name="homework_pass_mark" readonly="1"/>
+                            </group>
+                            <group>
+                                <field name="submission_ratio" readonly="1"/>
+                                <button name="action_view_group_homework_submissions"
+                                        type="object" string="Baholash"
+                                        class="btn-primary"
+                                        icon="fa-pencil-square-o"/>
+                            </group>
+                        </group>
+
+                        <!-- Rows edit inline, but only Ball/Izoh are writable —
+                             the report model's write() forwards them to the
+                             student's real submission. -->
+                        <field name="lesson_report_ids" invisible="not slide_id">
+                            <list string="Talabalar" create="false"
+                                  delete="false" editable="bottom">
+                                <field name="student_id" string="Talaba" readonly="1"/>
+                                <field name="slide_id" string="Dars" readonly="1"/>
+                                <field name="homework_id" string="Uy vazifasi" readonly="1"/>
+                                <field name="result_state" string="Holati"
+                                       widget="badge" readonly="1"
+                                       decoration-success="result_state == 'passed'"
+                                       decoration-warning="result_state == 'not_passed'"
+                                       decoration-danger="result_state == 'failed'"/>
+                                <field name="mark" string="Ball"/>
+                                <field name="teacher_comment" string="Izoh"
+                                       optional="show"/>
+                                <field name="student_comment" string="O'quvchi izohi"
+                                       readonly="1" optional="hide"/>
+                                <field name="attendance_status" string="Davomat"
+                                       readonly="1" optional="hide"/>
+                            </list>
+                        </field>
+
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

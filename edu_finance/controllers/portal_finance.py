@@ -50,6 +50,8 @@ class CustomerPortalFinance(CustomerPortal):
             summaries.append({
                 "group_name": line.group_id.name,
                 "course_name": line.group_id.course_id.name,
+                "teacher_name": line.group_id.teacher_id.name or "",
+                "mentor_name": line.group_id.extra_teacher_id.name or "",
                 "starting_module": line.starting_module_id.name or "",
                 "enrollment_date": line.enrollment_date,
                 "state": line.state,

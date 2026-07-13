@@ -1,6 +1,8 @@
 from odoo import api, fields, models, _
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from datetime import timedelta
+
+from .edu_group import teacher_locked, edu_administration
 
 
 class EduAttendance(models.Model):
@@ -92,6 +94,14 @@ class EduAttendance(models.Model):
     teacher_end_image = fields.Binary("Teacher End Photo", attachment=True)
     teacher_end_image_filename = fields.Char("End Image Filename")
 
+    # UI flag: True when the current user is a locked teacher (see edu_group)
+    teacher_readonly = fields.Boolean(compute="_compute_teacher_readonly")
+
+    def _compute_teacher_readonly(self):
+        locked = teacher_locked(self.env)
+        for rec in self:
+            rec.teacher_readonly = locked
+
     @api.depends("timetable_id.name", "attendance_date")
     def _compute_name(self):
         for record in self:
@@ -114,7 +124,7 @@ class EduAttendance(models.Model):
         if self.state == 'confirmed':
             raise UserError(_("Attendance is already confirmed."))
 
-        is_admin = self.env.user.has_group("base.group_system")
+        is_admin = edu_administration(self.env)
 
         # Admin can confirm directly without photo
         if is_admin:
@@ -167,11 +177,19 @@ class EduAttendance(models.Model):
             frozen_students = []
             total_teacher_amount = 0.0
             
-            # Process each student attendance
+            # Process each student attendance. The group advances as ONE unit:
+            # absent students advance too (billing already counts held lessons
+            # via passed_lessons_count regardless of presence) — otherwise each
+            # absence desyncs that student's module position from the group.
+            # Presence stays recorded on the attendance line itself.
+            processed_student_ids = set()
             for attendance_line in record.attendance_line_ids:
-                if attendance_line.status != 'present':
+                # Duplicate attendance lines for the same student (from
+                # duplicated enrollment lines in old data) must count once.
+                if attendance_line.student_id.id in processed_student_ids:
                     continue
-                
+                processed_student_ids.add(attendance_line.student_id.id)
+
                 student_line = group.student_line_ids.filtered(
                     lambda s: s.student_id == attendance_line.student_id
                 )
@@ -244,8 +262,52 @@ class EduAttendance(models.Model):
             record.group_id.message_post(body="\n".join(message_parts))
         
     def action_reset_to_draft(self):
-        """Reset to draft"""
+        """Reset to draft, reversing the lesson-count increments of confirm.
+
+        Without the rollback, reset + re-confirm (or reset + delete) counts the
+        same lesson twice / leaves phantom lessons on the students' module
+        progress — this is exactly how the U18 module drift happened."""
+        if teacher_locked(self.env):
+            raise AccessError(_("Tasdiqlangan davomatni faqat administratsiya qaytara oladi."))
+        for record in self:
+            if record.state != "confirmed":
+                continue
+            # Mirror of action_process_confirmation: every enrolled student
+            # advanced on confirm (present or absent), so every one steps back.
+            processed_student_ids = set()
+            for line in record.attendance_line_ids:
+                if line.student_id.id in processed_student_ids:
+                    continue
+                processed_student_ids.add(line.student_id.id)
+                student_line = record.group_id.student_line_ids.filtered(
+                    lambda s: s.student_id == line.student_id and s.state != "cancelled"
+                )[:1]
+                if student_line:
+                    student_line.decrement_lesson_count()
+            record.group_id.message_post(
+                body=_("↩️ Davomat qoralamaga qaytarildi (%s) — o'quvchilarning dars hisoblari qaytarildi.") % (record.attendance_date or "",)
+            )
         self.write({"state": "draft"})
+
+    def unlink(self):
+        # A confirmed attendance already advanced the students' lesson counts
+        # (and module payments were processed from it). Deleting it would leave
+        # those increments orphaned — force an explicit reset first, which
+        # rolls the counts back.
+        if any(rec.state == "confirmed" for rec in self):
+            raise UserError(_(
+                "Tasdiqlangan davomatni o'chirish mumkin emas. Avval uni "
+                "qoralamaga qaytaring — o'quvchilarning dars hisoblari "
+                "avtomatik qaytariladi."
+            ))
+        return super().unlink()
+
+    def write(self, vals):
+        # Teachers take attendance while it is draft; once confirmed it is
+        # frozen for them (payments were already processed from it).
+        if teacher_locked(self.env) and any(rec.state == "confirmed" for rec in self):
+            raise AccessError(_("Tasdiqlangan davomatni o'zgartirish mumkin emas. Bu administratsiya vazifasi."))
+        return super().write(vals)
     
     def action_mark_all_present(self):
         """Mark all students as present"""
@@ -357,12 +419,15 @@ class EduAttendanceLine(models.Model):
         store=True,
     )
 
+    # Same source of truth as the "To'lov holati" column on the group's
+    # student list (debt_status: paid lessons vs passed lessons). The old
+    # module-payment based payment_status showed a different, misleading
+    # verdict here (e.g. "To'liq to'langan" for students the roster calls
+    # Qarzdor).
     student_payment_status = fields.Selection(
         [
-            ('not_started', "To'lanmagan"),
-            ('partial', "Qisman to'langan"),
-            ('paid', "To'liq to'langan"),
-            ('overdue', "Muddati o'tgan"),
+            ('paid', "Haqdor"),
+            ('debtor', "Qarzdor"),
         ],
         string="To'lov holati",
         compute="_compute_student_payment_status",
@@ -371,12 +436,17 @@ class EduAttendanceLine(models.Model):
 
     @api.depends("attendance_id.group_id", "student_id")
     def _compute_student_payment_status(self):
+        # Warm the batched passed/paid lesson computes for all member lines at
+        # once — reading debt_status line-by-line would recompute per record.
+        member_lines = self.mapped("attendance_id.group_id.student_line_ids")
+        if member_lines:
+            member_lines.mapped("debt_status")
         for rec in self:
             group = rec.attendance_id.group_id
             student_line = group.student_line_ids.filtered(
                 lambda s: s.student_id == rec.student_id
             )
-            rec.student_payment_status = student_line[0].payment_status if student_line else False
+            rec.student_payment_status = student_line[0].debt_status if student_line else False
 
     @api.depends("status", "student_name")
     def _compute_display_name_field(self):
@@ -407,6 +477,15 @@ class EduAttendanceLine(models.Model):
         )
     ]
 
+    def write(self, vals):
+        # mirrors the edu.attendance guard: lines of a confirmed attendance
+        # are frozen for teachers
+        if teacher_locked(self.env) and any(
+            line.attendance_id.state == "confirmed" for line in self
+        ):
+            raise AccessError(_("Tasdiqlangan davomatni o'zgartirish mumkin emas. Bu administratsiya vazifasi."))
+        return super().write(vals)
+
 
 class CameraStartWizard(models.TransientModel):
     _name = 'edu.camera.wizard'
@@ -429,7 +508,14 @@ class CameraStartWizard(models.TransientModel):
         })
         
         attendance_lines = []
+        seen_students = set()
+        # One line per distinct student: duplicated enrollment lines (historic
+        # data) would otherwise produce duplicate attendance lines, and confirm
+        # would then advance that student's lesson count twice per lesson.
         for student_line in self.timetable_id.group_id.student_line_ids.filtered(lambda s: s.state != "cancelled"):
+            if student_line.student_id.id in seen_students:
+                continue
+            seen_students.add(student_line.student_id.id)
             attendance_lines.append((0, 0, {
                 "student_id": student_line.student_id.id,
                 "status": "present",
@@ -461,7 +547,7 @@ class CameraEndWizard(models.TransientModel):
         """Save end image and process confirmation"""
         self.ensure_one()
 
-        is_admin = self.env.user.has_group("base.group_system")
+        is_admin = edu_administration(self.env)
 
         # if not admin, photo required
         if not is_admin and not self.teacher_image:

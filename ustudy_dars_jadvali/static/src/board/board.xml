@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-name="ustudy_dars_jadvali.Board">
+    <div class="o_dars_jadvali">
+        <!-- ================= FILTERS ================= -->
+        <div class="o_dj_filters">
+            <div class="o_dj_filter">
+                <label>Boshlanish</label>
+                <input type="date" t-model="state.filters.date_from" t-on-change="onFilterChange"/>
+            </div>
+            <div class="o_dj_filter">
+                <label>Tugash</label>
+                <input type="date" t-model="state.filters.date_to" t-on-change="onFilterChange"/>
+            </div>
+            <div class="o_dj_filter">
+                <label>Xona</label>
+                <select t-model="state.filters.room_id" t-on-change="onFilterChange">
+                    <option value="">Barchasi</option>
+                    <t t-if="state.data">
+                        <t t-foreach="state.data.filter_options.rooms" t-as="r" t-key="r.id">
+                            <option t-att-value="r.id" t-esc="r.name"/>
+                        </t>
+                    </t>
+                </select>
+            </div>
+            <div class="o_dj_filter">
+                <label>Ustoz</label>
+                <select t-model="state.filters.teacher_id" t-on-change="onFilterChange">
+                    <option value="">Barchasi</option>
+                    <t t-if="state.data">
+                        <t t-foreach="state.data.filter_options.teachers" t-as="te" t-key="te.id">
+                            <option t-att-value="te.id" t-esc="te.name"/>
+                        </t>
+                    </t>
+                </select>
+            </div>
+            <div class="o_dj_filter">
+                <label>Guruh</label>
+                <select t-model="state.filters.group_id" t-on-change="onFilterChange">
+                    <option value="">Barchasi</option>
+                    <t t-if="state.data">
+                        <t t-foreach="state.data.filter_options.groups" t-as="g" t-key="g.id">
+                            <option t-att-value="g.id" t-esc="g.name"/>
+                        </t>
+                    </t>
+                </select>
+            </div>
+            <div class="o_dj_filter">
+                <label>Kunlar</label>
+                <select t-model="state.filters.parity" t-on-change="onFilterChange">
+                    <option value="">Barchasi</option>
+                    <option value="toq">Toq (Du/Cho/Ju)</option>
+                    <option value="juft">Juft (Se/Pa/Sha)</option>
+                </select>
+            </div>
+            <div class="o_dj_filter">
+                <label>Vaqt</label>
+                <select t-model="state.filters.slot" t-on-change="onFilterChange">
+                    <option value="">Barchasi</option>
+                    <t t-if="state.data">
+                        <t t-foreach="state.data.slots" t-as="s" t-key="s_index">
+                            <option t-att-value="s_index" t-esc="s"/>
+                        </t>
+                    </t>
+                </select>
+            </div>
+            <div class="o_dj_filter o_dj_filter_buttons">
+                <button class="btn btn-sm btn-secondary" t-on-click="() => this.shiftWeek(-1)">‹ Hafta</button>
+                <button class="btn btn-sm btn-secondary" t-on-click="() => this.shiftWeek(1)">Hafta ›</button>
+                <button class="btn btn-sm btn-light" t-on-click="resetFilters">Tozalash</button>
+            </div>
+        </div>
+
+        <div t-if="state.loading" class="o_dj_loading">Yuklanmoqda...</div>
+
+        <!-- ================= BOARD ================= -->
+        <div t-if="!state.loading and state.data" class="o_dj_board">
+            <t t-foreach="state.data.weeks" t-as="week" t-key="week.date_from">
+                <div class="o_dj_week">
+                    <table class="o_dj_table">
+                        <!-- month / week header -->
+                        <thead>
+                            <tr class="o_dj_month_row">
+                                <th class="o_dj_side" colspan="2">
+                                    <div class="o_dj_month" t-esc="week.month"/>
+                                    <div class="o_dj_week_label" t-esc="week.label"/>
+                                </th>
+                                <th t-att-colspan="state.data.rooms.length * 2" class="o_dj_month_span">
+                                    <t t-esc="week.month"/> · <t t-esc="week.label"/>
+                                </th>
+                            </tr>
+                            <tr class="o_dj_rooms_row">
+                                <th class="o_dj_side" colspan="2">Xonalar</th>
+                                <t t-foreach="state.data.rooms" t-as="room" t-key="room.id">
+                                    <th colspan="2">
+                                        <t t-esc="room.name"/>
+                                        <span class="o_dj_cap" t-esc="' · ' + room.capacity + ' o‘rin'"/>
+                                    </th>
+                                </t>
+                            </tr>
+                            <tr class="o_dj_rf_row">
+                                <th colspan="2" class="o_dj_side">Reja / Fakt</th>
+                                <t t-foreach="state.data.rooms" t-as="room" t-key="room.id">
+                                    <th class="o_dj_reja">Reja</th>
+                                    <th class="o_dj_fakt">Fakt</th>
+                                </t>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            <t t-foreach="week.blocks" t-as="block" t-key="block.parity">
+                                <!-- block header: lessons Reja/Fakt per room -->
+                                <tr t-attf-class="o_dj_block_head o_dj_{{ block.parity }}">
+                                    <td class="o_dj_block_label" colspan="2">
+                                        <span t-esc="block.label"/>
+                                        <div class="o_dj_block_total">
+                                            Darslar: <b t-esc="block.total.lessons_reja"/> /
+                                            <b t-esc="block.total.lessons_fakt"/>
+                                            (<t t-esc="pct(block.total.lessons_fakt, block.total.lessons_reja)"/>)
+                                        </div>
+                                    </td>
+                                    <t t-foreach="state.data.rooms" t-as="room" t-key="room.id">
+                                        <td class="o_dj_num">
+                                            <div t-esc="block.room_totals[room.id].lessons_reja"/>
+                                            <div class="o_dj_pct">100%</div>
+                                        </td>
+                                        <td class="o_dj_num">
+                                            <div t-esc="block.room_totals[room.id].lessons_fakt"/>
+                                            <div class="o_dj_pct"
+                                                 t-esc="pct(block.room_totals[room.id].lessons_fakt, block.room_totals[room.id].lessons_reja)"/>
+                                        </td>
+                                    </t>
+                                </tr>
+
+                                <!-- slot rows -->
+                                <t t-foreach="block.rows" t-as="row" t-key="row.slot">
+                                    <tr class="o_dj_slot_row">
+                                        <td t-if="row_first" class="o_dj_day_label" t-att-rowspan="block.rows.length">
+                                            <span t-attf-class="o_dj_day_vertical o_dj_{{ block.parity }}_text"
+                                                  t-esc="block.label"/>
+                                        </td>
+                                        <td class="o_dj_slot" t-esc="row.slot"/>
+                                        <t t-foreach="state.data.rooms" t-as="room" t-key="room.id">
+                                            <td t-if="!row.cells[room.id].skip" colspan="2"
+                                                t-att-rowspan="row.cells[room.id].rowspan"
+                                                class="o_dj_cell">
+                                                <t t-foreach="row.cells[room.id].cards" t-as="card" t-key="card.group_id">
+                                                    <div t-attf-class="o_dj_card o_dj_card_{{ card.color }}"
+                                                         t-on-click="() => this.openCard(card)">
+                                                        <div class="o_dj_card_line o_dj_card_fani" t-esc="card.course"/>
+                                                        <div class="o_dj_card_line o_dj_card_ustoz" t-esc="card.teacher"/>
+                                                        <div class="o_dj_card_nums">
+                                                            <span class="o_dj_card_key">Dars soni:</span>
+                                                            <span t-esc="card.lessons_reja"/>
+                                                            <span t-esc="card.lessons_fakt"/>
+                                                        </div>
+                                                        <div class="o_dj_card_nums">
+                                                            <span class="o_dj_card_key">Probniy:</span>
+                                                            <span/>
+                                                            <span t-esc="card.probniy"/>
+                                                        </div>
+                                                        <div class="o_dj_card_nums">
+                                                            <span class="o_dj_card_key">O'quvchi soni:</span>
+                                                            <span t-esc="card.capacity"/>
+                                                            <span t-esc="card.students"/>
+                                                        </div>
+                                                    </div>
+                                                </t>
+                                            </td>
+                                        </t>
+                                    </tr>
+                                </t>
+
+                                <!-- block footer: seats Reja/Fakt per room -->
+                                <tr t-attf-class="o_dj_block_foot o_dj_{{ block.parity }}">
+                                    <td colspan="2" class="o_dj_block_label">
+                                        O'rinlar (Reja/Fakt):
+                                        <b t-esc="block.total.seats_reja"/> /
+                                        <b t-esc="block.total.seats_fakt"/>
+                                        (<t t-esc="pct(block.total.seats_fakt, block.total.seats_reja)"/>)
+                                    </td>
+                                    <t t-foreach="state.data.rooms" t-as="room" t-key="room.id">
+                                        <td class="o_dj_num">
+                                            <div t-esc="block.room_totals[room.id].seats_reja"/>
+                                            <div class="o_dj_pct">100%</div>
+                                        </td>
+                                        <td class="o_dj_num">
+                                            <div t-esc="block.room_totals[room.id].seats_fakt"/>
+                                            <div class="o_dj_pct"
+                                                 t-esc="pct(block.room_totals[room.id].seats_fakt, block.room_totals[room.id].seats_reja)"/>
+                                        </td>
+                                    </t>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+                </div>
+            </t>
+        </div>
+    </div>
+</t>
+
+</templates>

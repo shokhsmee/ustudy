@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_dars_jadvali_board" model="ir.actions.client">
+        <field name="name">Jadval doskasi</field>
+        <field name="tag">ustudy_dars_jadvali.board</field>
+    </record>
+
+    <menuitem id="menu_dars_jadvali_board"
+              name="Jadval doskasi"
+              parent="ustudy_group.menu_edu_timetable_root"
+              action="action_dars_jadvali_board"
+              sequence="3"/>
+</odoo>

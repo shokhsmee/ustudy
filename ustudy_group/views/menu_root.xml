@@ -1,0 +1,9 @@
+<!-- Root menu only. It lives in its own file loaded right after security so
+     that every later view file (attendance, timetable, …) can attach menus
+     to it — on a fresh install menu.xml loads too late for that. -->
+<odoo>
+    <menuitem id="menu_edu_root"
+            name="Guruhlar"
+            sequence="10"
+            web_icon="ustudy_group,static/icon.png"/>
+</odoo>

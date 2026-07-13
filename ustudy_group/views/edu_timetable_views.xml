@@ -32,13 +32,14 @@
                   decoration-muted="state == 'cancelled'">
                 <field name="lesson_sequence" string="No." readonly="1"/>
                 <field name="name"/>
-                <field name="group_id"/>
+                <field name="module_id" readonly="1"/>
+                <field name="group_id" optional="hide"/>
                 <field name="course_id"/>
                 <field name="teacher_id" widget="many2one_avatar_user"/>
                 <field name="weekday_id"/>
                 <field name="room_id"/>
                 <field name="start_datetime"/>
-                <field name="end_datetime"/>
+                <field name="end_datetime" optional="hide"/>
                 <field name="duration" widget="float_time"/>
                 <field name="student_count"/>
                 <field name="state" widget="badge"
@@ -68,35 +69,60 @@
                             type="object"
                             class="btn-success"
                             invisible="state != 'in_progress'"/>
-                    <button name="action_cancel" 
-                            string="Cancel" 
-                            type="object" 
+                    <button name="action_cancel"
+                            string="Cancel"
+                            type="object"
                             class="btn-secondary"
-                            invisible="state in ['completed', 'cancelled']"/>
+                            invisible="state in ['completed', 'cancelled']"
+                            groups="!ustudy_group.group_teacher"/>
                     <field name="state" widget="statusbar" 
                            statusbar_visible="scheduled,in_progress,completed"/>
                 </header>
                 <sheet>
                     <field name="is_today" invisible="1"/>
+                    <field name="teacher_readonly" invisible="1"/>
+
+                    <!-- Mini dashboard: lesson KPI cards (same style as the group form) -->
+                    <div class="o_group_mini_dashboard">
+                        <div class="o_group_kpi_card">
+                            <div class="o_group_kpi_label">Dars sanasi</div>
+                            <div class="o_group_kpi_value o_group_kpi_value_sm">
+                                <field name="start_date" nolabel="1" readonly="1"/>
+                            </div>
+                        </div>
+                        <div class="o_group_kpi_card">
+                            <div class="o_group_kpi_label">Dars tartib raqami</div>
+                            <div class="o_group_kpi_value">
+                                <field name="lesson_sequence" nolabel="1" readonly="1"/>
+                            </div>
+                        </div>
+                        <div class="o_group_kpi_card">
+                            <div class="o_group_kpi_label">Dars moduli</div>
+                            <div class="o_group_kpi_value o_group_kpi_value_sm">
+                                <field name="module_id" nolabel="1" readonly="1" options="{'no_open': True}"/>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="oe_title">
                         <h1>
                             <field name="name" readonly="1"/>
                         </h1>
                     </div>
-                    
+
                     <group>
                         <group string="Group Information">
-                            <field name="group_id" options="{'no_create': True}"/>
+                            <field name="group_id" options="{'no_create': True}" readonly="teacher_readonly"/>
                             <field name="course_id" readonly="1"/>
-                            <field name="teacher_id" widget="many2one_avatar_user"/>
+                            <field name="teacher_id" widget="many2one_avatar_user" readonly="teacher_readonly"/>
                             <field name="student_count"/>
                         </group>
-                        
+
                         <group string="Schedule Details">
-                            <field name="weekday_id"/>
-                            <field name="room_id" options="{'no_create': True}"/>
-                            <field name="start_datetime"/>
-                            <field name="end_datetime"/>
+                            <field name="weekday_id" readonly="teacher_readonly"/>
+                            <field name="room_id" options="{'no_create': True}" readonly="teacher_readonly"/>
+                            <field name="start_datetime" readonly="teacher_readonly"/>
+                            <field name="end_datetime" readonly="teacher_readonly"/>
                             <field name="duration" widget="float_time"/>
                         </group>
                     </group>
@@ -140,6 +166,47 @@
         </field>
     </record>
 
+
+    <!-- ROOM OCCUPANCY (OWL view): rooms x days/time grid, schedule lessons -->
+    <record id="view_edu_timetable_room_bandlik" model="ir.ui.view">
+        <field name="name">edu.timetable.room.bandlik</field>
+        <field name="model">edu.timetable</field>
+        <field name="type">room_bandlik</field>
+        <field name="arch" type="xml">
+            <room_bandlik date_start="start_datetime"
+                          date_stop="end_datetime"
+                          room_field="room_id"
+                          group_field="group_id"
+                          teacher_field="teacher_id"
+                          state_field="state">
+                <field name="group_id"/>
+                <field name="room_id"/>
+                <field name="teacher_id"/>
+                <field name="start_datetime"/>
+                <field name="end_datetime"/>
+                <field name="state"/>
+            </room_bandlik>
+        </field>
+    </record>
+
+    <!-- ROOM OCCUPANCY ACTION -->
+    <record id="action_edu_timetable_rooms" model="ir.actions.act_window">
+        <field name="name">Xonalar bandligi</field>
+        <field name="res_model">edu.timetable</field>
+        <field name="view_mode">room_bandlik,list,form</field>
+        <field name="view_id" ref="view_edu_timetable_room_bandlik"/>
+        <field name="domain">[('group_active','=',True),('state','!=','cancelled')]</field>
+        <field name="search_view_id" ref="view_edu_timetable_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Xonalar band emas
+            </p>
+            <p>
+                Har bir xona bo'yicha kunlik dars jadvali (qaysi guruh qachon
+                qaysi xonada o'qiydi) shu yerda ko'rsatiladi.
+            </p>
+        </field>
+    </record>
 
     <!-- TIMETABLE ACTION -->
     <record id="action_edu_timetable" model="ir.actions.act_window">

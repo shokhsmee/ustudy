@@ -12,8 +12,10 @@
         <div class="row mb-4">
           <span class="text-muted fw-bold col-4 col-md-3">Homeworks</span>
           <div class="text-muted me-auto border-start ps-3 col-8 col-md-9">
-            <t t-set="published_homeworks"
+            <t t-set="all_published"
                t-value="slide.homework_ids.filtered(lambda h: h.is_published)"/>
+            <t t-set="published_homeworks"
+               t-value="slide.get_visible_homeworks(request.env.user)"/>
 
             <t t-if="published_homeworks">
               <ul class="list-unstyled">
@@ -57,6 +59,11 @@
                   </li>
                 </t>
               </ul>
+            </t>
+            <t t-elif="all_published">
+              <span class="text-muted">
+                <i class="fa fa-lock me-1"/>Homework will be available once this lesson is started.
+              </span>
             </t>
             <t t-else="">
               <span class="text-muted">No homeworks for this lesson.</span>
@@ -322,6 +329,20 @@
 
       <div class="hw-page">
 
+        <!-- ── Locked: lesson not started yet ── -->
+        <t t-if="locked">
+          <div class="hw-header">
+            <h1 class="hw-title" t-esc="homework.name"/>
+            <div class="hw-login-prompt" style="margin-top:16px;">
+              <i class="fa fa-lock" style="font-size:1.5rem; margin-bottom:8px; display:block;"/>
+              This homework will be available once your lesson has started.
+            </div>
+          </div>
+        </t>
+
+        <!-- ── Unlocked: full homework content ── -->
+        <t t-else="">
+
         <!-- ── LEFT: Homework info ── -->
         <div class="hw-header">
           <h1 class="hw-title" t-esc="homework.name"/>
@@ -537,6 +558,8 @@
 
           </div>
         </t>
+
+        </t><!-- end unlocked -->
 
       </div>
     </t>

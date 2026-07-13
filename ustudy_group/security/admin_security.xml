@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================
+         GROUP: Administrator (TZ: "Administrator" roli)
+         Front-office administration of the study center: manages the
+         student base (contacts), builds groups and timetables, works
+         open-lesson leads in CRM, keeps the Events / Team Building
+         history and corrects attendance mistakes.
+         Assign it to users through the "Administrator" role in
+         base_user_role (same as the Teacher role).
+
+         Implied groups map the TZ permission matrix onto standard apps:
+           - base.group_partner_manager → create/edit contacts
+             (unlink is blocked again in res_partner.unlink())
+           - website_slides officer → same as Teacher: eLearning app +
+             the slide checks in ustudy_homework treat them as staff
+           - sales_team.group_sale_salesman_all_leads → sees ALL leads,
+             can create/update them; the salesman ACL carries NO unlink,
+             which is exactly the TZ ("CRM: o'chirish — Yo'q")
+           - event.group_event_user → create/edit events and
+             registrations; event unlink comes from our own ACL line and
+             is narrowed to finished/archived events by the rule below
+
+         Deliberately NOT implied (TZ "Tizimli cheklovlar"):
+           - hr groups → colleagues' salaries, rates and contracts stay
+             invisible (non-HR users only read hr.employee.public)
+           - base.group_system / base.group_erp_manager → Settings, Apps
+             and Users management stay blocked
+           - no kassa rights → cc.finance stays read-only for this role
+             (create/write/unlink guarded in edu_finance's cc_finance.py)
+    ============================================================ -->
+    <record id="group_edu_admin" model="res.groups">
+        <field name="name">Administrator</field>
+        <field name="implied_ids" eval="[
+            (4, ref('base.group_user')),
+            (4, ref('base.group_partner_manager')),
+            (4, ref('website_slides.group_website_slides_officer')),
+            (4, ref('sales_team.group_sale_salesman_all_leads')),
+            (4, ref('event.group_event_user')),
+        ]"/>
+    </record>
+
+
+    <!-- ============================================================
+         RECORD RULES
+         Only unlink needs scoping: reads stay unrestricted (the TZ
+         gives the Administrator "Barcha ma'lumotlar" on every module),
+         and the no-delete cases (contacts, CRM, attendance, payments)
+         are handled by ACLs and method guards instead.
+    ============================================================ -->
+
+    <!-- Guruhlar: delete only groups that finished or were cancelled
+         ("Ha — bitirgan guruhlarni o'chirish"); a running group cannot
+         be deleted even by mistake. Deleting a group cascades to its
+         roster lines, timetable and attendance (DB-level FK cascade);
+         payment records survive because cc.finance.student_line_id is
+         ondelete="set null". -->
+    <record id="rule_edu_group_admin_unlink" model="ir.rule">
+        <field name="name">Administrator: faqat bitirgan/bekor qilingan guruhni o'chirish</field>
+        <field name="model_id" ref="model_edu_group"/>
+        <field name="domain_force">['|', ('state', 'in', ('done', 'cancelled')), ('active', '=', False)]</field>
+        <field name="groups" eval="[(4, ref('ustudy_group.group_edu_admin'))]"/>
+        <field name="perm_read" eval="False"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- Tadbirlar: delete only ended-stage or archived events
+         ("Ha — bekor bo'lganlarni o'chirish"); live/upcoming events are
+         protected. The unlink permission itself comes from the
+         access_event_event_edu_admin ACL line. -->
+    <record id="rule_event_event_admin_unlink" model="ir.rule">
+        <field name="name">Administrator: faqat tugagan/arxivlangan tadbirni o'chirish</field>
+        <field name="model_id" ref="event.model_event_event"/>
+        <field name="domain_force">['|', ('stage_id.pipe_end', '=', True), ('active', '=', False)]</field>
+        <field name="groups" eval="[(4, ref('ustudy_group.group_edu_admin'))]"/>
+        <field name="perm_read" eval="False"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+</odoo>

@@ -1,6 +1,6 @@
 {
     "name": "UStudy eLearning Homework",
-    "version": "1.4.0",
+    "version": "1.6.1",
     "summary": "Homework & grading for eLearning lessons",
     "category": "Education",
     "author": "Shohjahon Obruyev",
@@ -15,7 +15,6 @@
         "ustudy_course",
         "ustudy_group",
         'portal',
-        "web_timeline",
     ],
     "data": [
         'security/security.xml',
@@ -29,6 +28,7 @@
         'views/portal_my_lessons.xml',
         'views/portal_home.xml',
         "views/edu_group_form_inherit.xml",
+        "views/edu_timetable_form_inherit.xml",
         "views/menus.xml",
     ],
     "assets": {
@@ -40,7 +40,13 @@
         ],
         "web.assets_frontend": [
             "ustudy_homework/static/src/js/ustudy_homework_tab.js",
-            "ustudy_homework/static/src/xml/lesson_calendar.js",
+            # FullCalendar global build (bundled by web) + the portal calendar
+            # initialiser. Path was previously the non-existent .../xml/... file,
+            # so the calendar JS never loaded and the page stuck on "loading".
+            "web/static/lib/fullcalendar/core/index.global.js",
+            "web/static/lib/fullcalendar/daygrid/index.global.js",
+            "web/static/lib/fullcalendar/list/index.global.js",
+            "ustudy_homework/static/src/js/lesson_calendar.js",
             "ustudy_homework/static/src/css/hide_sidebar.css",
         ],
     },

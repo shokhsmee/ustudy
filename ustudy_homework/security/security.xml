@@ -8,4 +8,45 @@
         <field name="domain_force">[('student_id', '=', user.partner_id.id)]</field>
     </record>
 
+    <!-- ============================================================
+         Teacher scoping for the Vazifalar app: a teacher only sees
+         homework of courses taught in groups they own or substitute in
+         (channel → edu.group inverse defined in ustudy_group), or
+         homework explicitly assigned to them as teacher. Submissions
+         and marks follow their homework. No other group rules exist on
+         these models, so plain teacher-group rules restrict cleanly.
+    ============================================================ -->
+    <record id="rule_edu_homework_teacher" model="ir.rule">
+        <field name="name">Teacher: own groups' homework only</field>
+        <field name="model_id" ref="model_edu_homework"/>
+        <field name="groups" eval="[(4, ref('ustudy_group.group_teacher'))]"/>
+        <field name="domain_force">['|', '|',
+            ('teacher_id.user_id', '=', user.id),
+            ('channel_id.edu_group_ids.teacher_id.user_id', '=', user.id),
+            ('channel_id.edu_group_ids.timetable_ids.teacher_id.user_id', '=', user.id),
+        ]</field>
+    </record>
+
+    <record id="rule_edu_homework_submission_teacher" model="ir.rule">
+        <field name="name">Teacher: own groups' homework submissions only</field>
+        <field name="model_id" ref="model_edu_homework_submission"/>
+        <field name="groups" eval="[(4, ref('ustudy_group.group_teacher'))]"/>
+        <field name="domain_force">['|', '|',
+            ('homework_id.teacher_id.user_id', '=', user.id),
+            ('homework_id.channel_id.edu_group_ids.teacher_id.user_id', '=', user.id),
+            ('homework_id.channel_id.edu_group_ids.timetable_ids.teacher_id.user_id', '=', user.id),
+        ]</field>
+    </record>
+
+    <record id="rule_edu_homework_mark_teacher" model="ir.rule">
+        <field name="name">Teacher: own groups' homework marks only</field>
+        <field name="model_id" ref="model_edu_homework_mark"/>
+        <field name="groups" eval="[(4, ref('ustudy_group.group_teacher'))]"/>
+        <field name="domain_force">['|', '|',
+            ('homework_id.teacher_id.user_id', '=', user.id),
+            ('homework_id.channel_id.edu_group_ids.teacher_id.user_id', '=', user.id),
+            ('homework_id.channel_id.edu_group_ids.timetable_ids.teacher_id.user_id', '=', user.id),
+        ]</field>
+    </record>
+
 </odoo>

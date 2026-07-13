@@ -41,31 +41,6 @@
     </record>
 
 
-    <record id="view_edu_student_lesson_report_timeline" model="ir.ui.view">
-        <field name="name">edu.student.lesson.report.timeline</field>
-        <field name="model">edu.student.lesson.report</field>
-        <field name="arch" type="xml">
-            <timeline
-                date_start="start_datetime"
-                date_stop="end_datetime"
-                string="Dars Jadvali"
-                default_group_by="group_id"
-                event_open_popup="true"
-                mode="week"
-                colors="#21b799:timetable_state=='completed';#f0ad4e:timetable_state=='in_progress';#d9534f:timetable_state=='cancelled';#5bc0de:timetable_state=='scheduled'"
-            >
-                <field name="timetable_name"/>
-                <field name="student_id"/>
-                <field name="group_id"/>
-                <field name="timetable_state"/>
-                <field name="attendance_status"/>
-                <field name="homework_state"/>
-                <field name="start_datetime"/>
-                <field name="end_datetime"/>
-            </timeline>
-        </field>
-    </record>
-
 
     <!-- Attendance-only list view (no homework/mark columns) -->
     <record id="view_edu_student_attendance_report_list" model="ir.ui.view">

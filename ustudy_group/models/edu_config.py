@@ -34,6 +34,14 @@ class EduConfig(models.Model):
         required=True,
         help='Student will be frozen if not paid by this lesson number'
     )
+
+    max_join_lesson = fields.Integer(
+        string='Student Join Deadline (Lesson #)',
+        default=4,
+        required=True,
+        help='New students can be added to a running group only within the first '
+             'N lessons of the current module (default: 4)'
+    )
     
     company_id = fields.Many2one(
         'res.company',

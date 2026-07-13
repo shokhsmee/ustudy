@@ -1,0 +1,268 @@
+// Dars jadvali board — Excel-flavored room/time schedule.
+$dj-blue: #4a86e8;
+$dj-blue-dark: #2f5fb3;
+$dj-toq: #a8c6f0;
+$dj-juft: #ffcf86;
+$dj-green: #34c759;
+$dj-yellow: #ffe600;
+$dj-red: #e8443a;
+
+.o_dars_jadvali {
+    height: 100%;
+    overflow: auto;
+    background: #f4f6f9;
+    padding: 8px 12px;
+
+    .o_dj_filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: flex-end;
+        background: #fff;
+        border: 1px solid #d8dde3;
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin-bottom: 10px;
+        position: sticky;
+        left: 0;
+
+        .o_dj_filter {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+
+            label {
+                font-size: 11px;
+                font-weight: 600;
+                color: #6c757d;
+                margin: 0;
+            }
+
+            input,
+            select {
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                padding: 3px 6px;
+                font-size: 13px;
+                min-width: 120px;
+                background: #fff;
+            }
+        }
+
+        .o_dj_filter_buttons {
+            flex-direction: row;
+            gap: 6px;
+        }
+    }
+
+    .o_dj_loading {
+        padding: 24px;
+        font-size: 15px;
+        color: #6c757d;
+    }
+
+    .o_dj_week {
+        margin-bottom: 22px;
+    }
+
+    .o_dj_table {
+        border-collapse: collapse;
+        background: #fff;
+        width: max-content;
+        min-width: 100%;
+
+        th,
+        td {
+            border: 1px solid #9db2c8;
+            vertical-align: top;
+        }
+
+        thead th {
+            background: $dj-blue;
+            color: #fff;
+            text-align: center;
+            padding: 4px 8px;
+            font-size: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .o_dj_month_row th {
+            background: $dj-blue-dark;
+            font-size: 13px;
+
+            .o_dj_month {
+                font-weight: 700;
+            }
+
+            .o_dj_week_label {
+                font-size: 11px;
+                opacity: 0.9;
+            }
+        }
+
+        .o_dj_rooms_row th {
+            font-weight: 700;
+
+            .o_dj_cap {
+                font-weight: 400;
+                font-size: 10px;
+                opacity: 0.85;
+            }
+        }
+
+        .o_dj_rf_row th {
+            font-size: 11px;
+            padding: 2px 4px;
+        }
+
+        .o_dj_side {
+            min-width: 150px;
+        }
+
+        .o_dj_block_head td,
+        .o_dj_block_foot td {
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+            padding: 3px 6px;
+        }
+
+        .o_dj_toq td {
+            background: $dj-toq;
+        }
+
+        .o_dj_juft td {
+            background: $dj-juft;
+        }
+
+        .o_dj_block_label {
+            text-align: left !important;
+            font-weight: 700;
+
+            .o_dj_block_total {
+                font-weight: 400;
+                font-size: 11px;
+            }
+        }
+
+        .o_dj_num {
+            min-width: 46px;
+
+            .o_dj_pct {
+                font-size: 10px;
+                font-weight: 400;
+                opacity: 0.8;
+            }
+        }
+
+        .o_dj_day_label {
+            width: 34px;
+            text-align: center;
+            vertical-align: middle;
+            background: #eef3fa;
+
+            .o_dj_day_vertical {
+                writing-mode: vertical-rl;
+                transform: rotate(180deg);
+                font-weight: 700;
+                font-size: 13px;
+                letter-spacing: 1px;
+                white-space: nowrap;
+            }
+        }
+
+        // 24 half-hour rows per block: keep empty rows compact so a 1.5h
+        // lesson (3-row rowspan) is roughly one card tall.
+        .o_dj_slot_row {
+            height: 30px;
+        }
+
+        .o_dj_slot {
+            width: 110px;
+            min-width: 110px;
+            font-weight: 600;
+            font-size: 11px;
+            text-align: center;
+            vertical-align: middle;
+            background: #eef3fa;
+            padding: 2px 4px;
+            white-space: nowrap;
+        }
+
+        .o_dj_cell {
+            min-width: 170px;
+            padding: 3px;
+            background: #fff;
+        }
+    }
+
+    // -------- lesson cards --------
+    .o_dj_card {
+        border-radius: 6px;
+        padding: 5px 7px;
+        margin-bottom: 4px;
+        cursor: pointer;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        transition: box-shadow 0.1s ease, transform 0.1s ease;
+
+        &:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .o_dj_card_line {
+            font-size: 12px;
+            line-height: 1.25;
+        }
+
+        .o_dj_card_fani {
+            font-weight: 700;
+        }
+
+        .o_dj_card_ustoz {
+            font-style: italic;
+        }
+
+        .o_dj_card_nums {
+            display: grid;
+            grid-template-columns: 1fr 34px 34px;
+            font-size: 11px;
+
+            .o_dj_card_key {
+                color: rgba(0, 0, 0, 0.6);
+            }
+
+            span:not(.o_dj_card_key) {
+                text-align: right;
+                font-weight: 600;
+                border-left: 1px solid rgba(0, 0, 0, 0.15);
+                padding-left: 4px;
+            }
+        }
+    }
+
+    .o_dj_card_green {
+        background: $dj-green;
+        color: #fff;
+
+        .o_dj_card_key {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+    }
+
+    .o_dj_card_yellow {
+        background: $dj-yellow;
+        color: #1a1a1a;
+    }
+
+    .o_dj_card_red {
+        background: $dj-red;
+        color: #fff;
+
+        .o_dj_card_key {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+    }
+}

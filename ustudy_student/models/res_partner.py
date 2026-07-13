@@ -200,6 +200,13 @@ class ResPartner(models.Model):
         is_student_toggling = "is_student" in vals
         is_online_toggling = "is_online_education" in vals
 
+        # Online Ta'lim requires an email: block enabling it without one.
+        if is_online_toggling and vals.get("is_online_education"):
+            for record in self:
+                resulting_email = vals.get("email", record.email)
+                if not resulting_email:
+                    raise UserError(_("Email kiritilishi shart"))
+
         pre_student = {}
         if is_student_toggling:
             pre_student = {r.id: r.is_student for r in self}

@@ -49,52 +49,68 @@ class EduStudentLessonReport(models.Model):
         self.env.cr.execute("""
             CREATE VIEW edu_group_student_lesson_report AS
                 SELECT
-                    (tt.id * 100000 + gs.student_id) AS id,
+                    row_number() OVER (ORDER BY sub.start_datetime, sub.timetable_id, sub.student_id) AS id,
 
-                    tt.id AS timetable_id,
-                    tt.group_id,
-                    tt.teacher_id,
-                    tt.state AS timetable_state,
-                    tt.start_datetime,
-                    tt.end_datetime,
-                    gs.student_id,
+                    sub.timetable_id,
+                    sub.group_id,
+                    sub.teacher_id,
+                    sub.timetable_state,
+                    sub.start_datetime,
+                    sub.end_datetime,
+                    sub.student_id,
 
-                    COALESCE(al.status, 'not_started') AS attendance_status,
+                    sub.attendance_status,
 
-                    CASE COALESCE(al.status, 'not_started')
+                    CASE sub.attendance_status
                         WHEN 'present' THEN '✅ Keldi'
                         WHEN 'absent' THEN '❌ Kelmadi'
                         ELSE '🔵 Boshlanmagan'
                     END AS attendance_label,
 
-                    rp.name || ' - ' ||
-                    CASE COALESCE(al.status,'not_started')
+                    COALESCE(sub.student_name, '') || ' - ' ||
+                    CASE sub.attendance_status
                         WHEN 'present' THEN '✅ Keldi'
                         WHEN 'absent' THEN '❌ Kelmadi'
                         ELSE '🔵 Boshlanmagan'
                     END AS display_name,
 
-                    tt.company_id
+                    sub.company_id
 
-                FROM edu_timetable tt
+                FROM (
+                    SELECT DISTINCT ON (tt.id, gs.student_id)
+                        tt.id AS timetable_id,
+                        tt.group_id,
+                        tt.teacher_id,
+                        tt.state AS timetable_state,
+                        tt.start_datetime,
+                        tt.end_datetime,
+                        gs.student_id,
+                        rp.name AS student_name,
+                        COALESCE(al.status, 'not_started') AS attendance_status,
+                        tt.company_id
 
-                JOIN edu_group_student gs
-                    ON gs.group_id = tt.group_id
-                    AND gs.state != 'cancelled'
-                    AND (
-                        gs.enrollment_date IS NULL
-                        OR tt.start_datetime >= gs.enrollment_date::timestamp
-                    )
+                    FROM edu_timetable tt
 
-                JOIN res_partner rp
-                    ON rp.id = gs.student_id
+                    JOIN edu_group_student gs
+                        ON gs.group_id = tt.group_id
+                        AND gs.state != 'cancelled'
+                        AND (
+                            gs.enrollment_date IS NULL
+                            OR tt.start_datetime >= gs.enrollment_date::timestamp
+                        )
 
-                LEFT JOIN edu_attendance ea
-                    ON ea.timetable_id = tt.id
+                    JOIN res_partner rp
+                        ON rp.id = gs.student_id
 
-                LEFT JOIN edu_attendance_line al
-                    ON al.attendance_id = ea.id
-                    AND al.student_id = gs.student_id
+                    LEFT JOIN edu_attendance ea
+                        ON ea.timetable_id = tt.id
 
-                WHERE tt.state != 'cancelled'
+                    LEFT JOIN edu_attendance_line al
+                        ON al.attendance_id = ea.id
+                        AND al.student_id = gs.student_id
+
+                    WHERE tt.state != 'cancelled'
+
+                    ORDER BY tt.id, gs.student_id, al.status NULLS LAST, al.id DESC
+                ) sub
         """)

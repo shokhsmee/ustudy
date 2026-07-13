@@ -135,31 +135,73 @@
         student, even if they're enrolled in multiple groups). New columns are
         added via list-view inherit in ustudy_group/views/student_views.xml.
     -->
-    <record id="ustudy_student.action_student_contacts" model="ir.actions.act_window">
-        <field name="view_mode">list,kanban,form</field>
-    </record>
-
-
-    <record id="view_edu_student_lesson_report_timeline" model="ir.ui.view">
-        <field name="name">edu.student.lesson.report.timeline</field>
-        <field name="model">edu.group.student.lesson.report</field>
+    <!--
+        Search/filter view for the Talabalar list. Filters delegate to the
+        roster_* search helpers on res.partner (see ustudy_group/models/
+        res_partner.py): guruh / ustoz / kurs / kurs boshlanish sanasi go
+        through the enrollment relation, and Qarzdor/Haqdor are matched on the
+        student's primary-enrollment payment health.
+    -->
+    <record id="view_student_partner_search" model="ir.ui.view">
+        <field name="name">res.partner.search.student</field>
+        <field name="model">res.partner</field>
         <field name="arch" type="xml">
-            <timeline
-                date_start="start_datetime"
-                date_stop="end_datetime"
-                default_group_by="student_id"
-                mode="week"
-                event_open_popup="true"
-                colors="
-                    #21b799: attendance_status == 'present';
-                    #e04f4f: attendance_status == 'absent';
-                    #1f9eba: attendance_status == 'not_started'
-                "
-            >
-                <field name="display_name"/>
-            </timeline>
+            <search string="Talabalarni qidirish">
+                <field name="name" string="Ism"/>
+                <field name="phone"/>
+                <field name="roster_group_id" string="Guruh"/>
+                <field name="roster_teacher_id" string="Ustoz"/>
+                <field name="roster_direction_id" string="Kurs"/>
+                <field name="roster_course_start_date" string="Kurs boshlanish sanasi"/>
+
+                <separator/>
+                <filter string="Qarzdor" name="debtor"
+                        domain="[('roster_payment_health', '=', 'debtor')]"/>
+                <filter string="Haqdor" name="paid"
+                        domain="[('roster_payment_health', '=', 'paid')]"/>
+
+                <!-- Click-to-select sidebar: pick a course and/or tick groups
+                     to filter the list (counters show students per item).
+                     Backed by the stored primary_* fields on res.partner. -->
+                <searchpanel>
+                    <field name="primary_course_id" string="Yo'nalish"
+                           icon="fa-graduation-cap" enable_counters="1"/>
+                    <field name="primary_group_id" string="Guruh" select="multi"
+                           icon="fa-users" enable_counters="1"/>
+                </searchpanel>
+            </search>
         </field>
     </record>
+
+    <record id="ustudy_student.action_student_contacts" model="ir.actions.act_window">
+        <field name="res_model">res.partner</field>
+        <field name="domain">[('is_student','=',True)]</field>
+        <field name="context">{'default_is_student': True, 'search_default_is_student': 1}</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_student_partner_search"/>
+        <!-- Rebuild the view bindings explicitly. They were lost on a previous
+             upgrade (action had view_mode 'kanban,form' and no view_ids), which
+             dropped the list view entirely. (5,0,0) clears, then re-creates. -->
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'sequence': 1, 'view_mode': 'list',   'view_id': ref('ustudy_student.view_student_partner_list')}),
+            (0, 0, {'sequence': 2, 'view_mode': 'kanban', 'view_id': ref('ustudy_student.view_student_partner_kanban')}),
+            (0, 0, {'sequence': 3, 'view_mode': 'form',   'view_id': ref('ustudy_student.view_student_partner_form')})
+        ]"/>
+    </record>
+
+    <!--
+        Force the Talabalar menu back onto the student (res.partner) action.
+        A previous version of this module repointed this menu to a temporary
+        action that was later removed; because the menu is owned by
+        ustudy_student, deleting that action left the menu dangling. Setting the
+        action explicitly here repairs it on upgrade.
+    -->
+    <menuitem id="ustudy_student.ustudy_student_menu_students"
+              name="Talabalar ro'yxati"
+              parent="ustudy_student.ustudy_student_menu_root"
+              action="ustudy_student.action_student_contacts"
+              sequence="10"/>
 
     <!-- GROUP FORM VIEW -->
     <record id="view_edu_group_form" model="ir.ui.view">
@@ -174,32 +216,69 @@
                             type="object" 
                             class="oe_highlight"
                             invisible="state == 'running'"
-                            groups="base.group_user"/>
+                            groups="base.group_user,!ustudy_group.group_teacher"/>
                     
                     <button name="action_complete" 
                             string="Mark as Done" 
                             type="object"
                             invisible="state != 'running'"
-                            groups="base.group_user"/>
+                            groups="base.group_user,!ustudy_group.group_teacher"/>
                     
                     <button name="action_add_student_midgroup"
                             string="Guruhga o'quvchi qo'shish"
                             type="object"
                             class="btn-success"
-                            invisible="state != 'running' or not is_at_module_start"
-                            groups="base.group_user"/>
+                            invisible="state != 'running' or not can_add_student_now"
+                            groups="base.group_user,!ustudy_group.group_teacher"/>
 
                     <button name="action_generate_or_regenerate_timetable"
                             string="Generate Timetable"
                             type="object"
                             class="btn-primary"
                             invisible="state not in ['draft', 'running']"
-                            groups="base.group_user"/>
+                            groups="base.group_user,!ustudy_group.group_teacher"/>
                     
-                    <field name="state" widget="statusbar" clickable="True" statusbar_visible="draft,running,done"/>
+                    <field name="state" widget="statusbar" clickable="True" statusbar_visible="draft,running,done"
+                           groups="!ustudy_group.group_teacher"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,running,done"
+                           groups="ustudy_group.group_teacher"/>
                 </header>
                 
                 <sheet>
+                    <!-- Mini dashboard: KPI cards shown before the buttons -->
+                    <div class="o_group_mini_dashboard">
+                        <div class="o_group_kpi_card">
+                            <div class="o_group_kpi_label">Aktiv o'quvchilar</div>
+                            <div class="o_group_kpi_value">
+                                <field name="active_student_count" nolabel="1" readonly="1"/>
+                            </div>
+                        </div>
+                        <div class="o_group_kpi_card">
+                            <div class="o_group_kpi_label">Davomat</div>
+                            <div class="o_group_kpi_value">
+                                <field name="attendance_display" nolabel="1" readonly="1"/>
+                            </div>
+                        </div>
+                        <div class="o_group_kpi_card">
+                            <div class="o_group_kpi_label">Vazifa ko'rsatkichi</div>
+                            <div class="o_group_kpi_value">
+                                <field name="homework_display" nolabel="1" readonly="1"/>
+                            </div>
+                        </div>
+                        <div class="o_group_kpi_card">
+                            <div class="o_group_kpi_label">Qarzdorlar jami</div>
+                            <div class="o_group_kpi_value o_group_kpi_value_sm">
+                                <field name="debt_total_display" nolabel="1" readonly="1"/>
+                            </div>
+                        </div>
+                        <div class="o_group_kpi_card">
+                            <div class="o_group_kpi_label">To'xtatgan o'quvchilar</div>
+                            <div class="o_group_kpi_value">
+                                <field name="stopped_student_count" nolabel="1" readonly="1"/>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Smart Buttons -->
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_students" 
@@ -244,83 +323,106 @@
                     <!-- Title -->
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                     <field name="active" invisible="1"/>
+                    <field name="teacher_readonly" invisible="1"/>
                     <field name="timetable_count" invisible="1"/>
-                    <field name="is_at_module_start" invisible="1"/>
+                    <field name="can_add_student_now" invisible="1"/>
+                    <field name="max_join_lesson" invisible="1"/>
+                    <field name="lessons_into_current_module" invisible="1"/>
                     <field name="lessons_until_next_module" invisible="1"/>
 
                     <!-- Banner: tell admin why "Add student" is hidden and when it'll come back. -->
                     <div class="alert alert-info mb-2"
                          role="alert"
-                         invisible="state != 'running' or is_at_module_start">
+                         invisible="state != 'running' or can_add_student_now">
                         <i class="fa fa-info-circle me-2" title="Info" role="img" aria-label="Info"/>
                         <strong>Yangi o'quvchi qo'shish hozir mumkin emas.</strong>
-                        Guruh modul o'rtasida. Keyingi modul boshlanishigacha
+                        Joriy modulda
+                        <field name="lessons_into_current_module" class="oe_inline fw-bold" readonly="1" nolabel="1"/>
+                        ta dars o'tib bo'lgan — o'quvchi faqat modulning birinchi
+                        <field name="max_join_lesson" class="oe_inline fw-bold" readonly="1" nolabel="1"/>
+                        ta darsi ichida qo'shiladi. Keyingi modul boshlanishigacha
                         <field name="lessons_until_next_module" class="oe_inline fw-bold" readonly="1" nolabel="1"/>
                         ta dars qoldi.
                     </div>
 
-                    <!-- Banner: green confirmation when at boundary -->
+                    <!-- Banner: green confirmation while joining is still open -->
                     <div class="alert alert-success mb-2"
                          role="alert"
-                         invisible="state != 'running' or not is_at_module_start">
+                         invisible="state != 'running' or not can_add_student_now">
                         <i class="fa fa-check-circle me-2" title="Ready" role="img" aria-label="Ready"/>
-                        Guruh modul boshlanishida. Hozir yangi o'quvchi qo'shish mumkin.
+                        Joriy modulda
+                        <field name="lessons_into_current_module" class="oe_inline fw-bold" readonly="1" nolabel="1"/>
+                        ta dars o'tilgan. Hozir yangi o'quvchi qo'shish mumkin
+                        (modulning birinchi
+                        <field name="max_join_lesson" class="oe_inline fw-bold" readonly="1" nolabel="1"/>
+                        ta darsi ichida).
                     </div>
                     
                     <div class="oe_title">
                         <label for="name" string="Group Name"/>
                         <h1>
-                            <field name="name" placeholder="e.g. Python P14" required="1"/>
+                            <field name="name" placeholder="e.g. Python P14" required="1" readonly="teacher_readonly"/>
                         </h1>
                     </div>
-                    
+
                     <!-- Main Information -->
                     <group>
                         <group string="Course Information">
-                            <field name="course_id" 
+                            <field name="course_id"
                                    options="{'no_create': True}"
-                                   required="1"/>
+                                   required="1"
+                                   readonly="teacher_readonly"/>
                             <field name="slide_channel_id" readonly="1"/>
-                            <field name="teacher_id" 
-                                   widget="many2one_avatar_user"/>
+                            <field name="teacher_id"
+                                   widget="many2one_avatar_user"
+                                   readonly="teacher_readonly"/>
+                            <field name="extra_teacher_id"
+                                   widget="many2one_avatar_user"
+                                   readonly="teacher_readonly"/>
+
                             <field name="lesson_room"
-                                   options="{'no_create': True}"/>
-                            <field name="group_color" widget="color_picker"/>
+                                   options="{'no_create': True}"
+                                   readonly="teacher_readonly"/>
+                            <field name="group_color" widget="color_picker" readonly="teacher_readonly"/>
                         </group>
                         
                         <group string="Schedule">
-                            <label for="start_date" string="Duration"/>
+                            <field name="start_date" string="Guruh boshlanish sanasi" required="1"
+                                   readonly="teacher_readonly"
+                                   help="ERP joriy qilish sanasini qo'ygan ma'qul. Agar ancha oldin boshlangan darsning sanasini yozsangiz, o'tib ketgan barcha ma'lumotlarni (davomat, topshiriqlar va boshqalarni) qo'lda to'ldirib chiqishga to'g'ri keladi."/>
+                            <field name="start_lesson_number" string="Boshlangan dars"
+                                   readonly="teacher_readonly"
+                                   help="Shu sanadan boshlab nechinchi dars o'tiladi."/>
+                            <field name="lesson_count" string="Jami darslar soni" placeholder="Darslar soni"
+                                   readonly="teacher_readonly"
+                                   help="Guruh dasturidagi standart/rejalashtirilgan darslar soni."/>
+                            <label for="end_date" string="Tugash sanasi"/>
                             <div class="o_row">
-                                <field name="start_date" class="oe_inline" nolabel="1" required="1"/>
-                                <span class="mx-2">•</span>
-                                <span class="mx-1 oe_edit_only text-muted">Boshlangan dars</span>
-                                <field name="start_lesson_number" class="oe_inline" nolabel="1" style="width:60px"/>
-                                <span class="mx-2">•</span>
-                                <field name="lesson_count" class="oe_inline" nolabel="1" placeholder="Lessons"/>
-                                <span class="mx-2 oe_read_only">→</span>
-                                <i class="fa fa-long-arrow-right mx-2 oe_edit_only" aria-label="Arrow icon" title="Arrow"/>
                                 <field name="end_date" class="oe_inline" nolabel="1" readonly="1"/>
                             </div>
-                            
+
                             <label for="lesson_start" string="Lesson Time"/>
                             <div class="o_row">
-                                <field name="lesson_start" 
+                                <field name="lesson_start"
                                     widget="float_time"
-                                    class="oe_inline" 
+                                    class="oe_inline"
                                     nolabel="1"
-                                    required="1"/>
+                                    required="1"
+                                    readonly="teacher_readonly"/>
                                 <i class="fa fa-long-arrow-right mx-2 oe_edit_only" aria-label="Arrow icon" title="Arrow"/>
                                 <span class="mx-2 oe_read_only">→</span>
-                                <field name="lesson_end" 
+                                <field name="lesson_end"
                                     widget="float_time"
-                                    class="oe_inline" 
+                                    class="oe_inline"
                                     nolabel="1"
-                                    required="1"/>
+                                    required="1"
+                                    readonly="teacher_readonly"/>
                             </div>
-                            <field name="lesson_days" 
+                            <field name="lesson_days"
                                    widget="many2many_tags"
                                    options="{'color_field': 'sequence', 'no_create': True}"
-                                   placeholder="Select lesson days..."/>
+                                   placeholder="Select lesson days..."
+                                   readonly="teacher_readonly"/>
                         </group>
                     </group>
 
@@ -330,8 +432,11 @@
                              Ism · Status · Joriy modul · O'tilingan darslar ·
                              O'tilgan darslar summasi · O'quvchi balans · Davomati · Vazifa holati. -->
                         <page string="Students" name="students">
-                            <field name="student_line_ids">
-                                <list editable="bottom" string="O'quvchilar"
+                            <field name="student_line_ids" readonly="teacher_readonly">
+                                <!-- create="false": students join ONLY through the
+                                     "Guruhga o'quvchi qo'shish" wizard, never by
+                                     adding a raw line here. -->
+                                <list editable="bottom" create="false" string="O'quvchilar"
                                       decoration-success="state == 'active' and debt_status == 'paid'"
                                       decoration-info="state == 'completed'"
                                       decoration-danger="state == 'frozen' or debt_status == 'debtor'"
@@ -493,8 +598,12 @@
 
                 <!-- Search fields -->
                 <field name="name" string="Guruh nomi"/>
+                <field name="student_line_ids" string="O'quvchi"
+                       filter_domain="[('student_line_ids.student_id', 'ilike', self)]"/>
                 <field name="teacher_id" string="O'qituvchi"/>
+                <field name="extra_teacher_id" string="Mentor"/>
                 <field name="course_id" string="Kurs"/>
+                <field name="start_date" string="Boshlanish sanasi"/>
                 <field name="lesson_days" string="Hafta kuni"/>
 
                 <!-- Status filters -->
@@ -509,15 +618,15 @@
                         domain="[('state', '=', 'cancelled')]"/>
 
                 <!-- Group By -->
-                <!-- <separator/>
-                <group expand="0" string="Guruhlash">
-                    <filter string="O'qituvchi" name="group_by_teacher"
-                            context="{'group_by': 'teacher_id'}"/>
-                    <filter string="Holat" name="group_by_state"
-                            context="{'group_by': 'state'}"/>
-                    <filter string="Kurs" name="group_by_course"
-                            context="{'group_by': 'course_id'}"/>
-                </group> -->
+                <separator/>
+                <filter string="O'qituvchi" name="group_by_teacher"
+                        context="{'group_by': 'teacher_id'}"/>
+                <filter string="Mentor" name="group_by_mentor"
+                        context="{'group_by': 'extra_teacher_id'}"/>
+                <filter string="Holat" name="group_by_state"
+                        context="{'group_by': 'state'}"/>
+                <filter string="Kurs" name="group_by_course"
+                        context="{'group_by': 'course_id'}"/>
             </search>
         </field>
     </record>

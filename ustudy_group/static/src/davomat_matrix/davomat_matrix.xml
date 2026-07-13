@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-name="ustudy_group.DavomatMatrix">
+    <div class="o_davomat_matrix">
+        <div t-if="state.loading" class="o_dm_loading">Yuklanmoqda...</div>
+
+        <t t-if="!state.loading and state.data">
+            <!-- KPI mini dashboard (same numbers as the group form) -->
+            <div class="o_group_mini_dashboard o_dm_dashboard">
+                <div class="o_group_kpi_card">
+                    <div class="o_group_kpi_label">Aktiv o'quvchilar</div>
+                    <div class="o_group_kpi_value" t-esc="state.data.kpi.active_students"/>
+                </div>
+                <div class="o_group_kpi_card">
+                    <div class="o_group_kpi_label">Davomat</div>
+                    <div class="o_group_kpi_value" t-esc="state.data.kpi.attendance"/>
+                </div>
+                <div class="o_group_kpi_card">
+                    <div class="o_group_kpi_label">Vazifa ko'rsatkichi</div>
+                    <div class="o_group_kpi_value" t-esc="state.data.kpi.homework"/>
+                </div>
+                <div class="o_group_kpi_card">
+                    <div class="o_group_kpi_label">Qarzdorlar jami</div>
+                    <div class="o_group_kpi_value o_group_kpi_value_sm" t-esc="state.data.kpi.debt_total"/>
+                </div>
+                <div class="o_group_kpi_card">
+                    <div class="o_group_kpi_label">To'xtatgan o'quvchilar</div>
+                    <div class="o_group_kpi_value" t-esc="state.data.kpi.stopped_students"/>
+                </div>
+            </div>
+
+            <!-- module navigation, like the timetable board's week buttons -->
+            <div class="o_dm_toolbar">
+                <button t-if="groupId" class="btn btn-sm btn-primary o_dm_back_btn"
+                        t-on-click="openGroup">
+                    ← <t t-esc="state.data.group.name"/> guruhiga qaytish
+                </button>
+                <button class="btn btn-sm btn-secondary"
+                        t-att-disabled="state.moduleIndex === 0"
+                        t-on-click="() => this.shiftModule(-1)">‹ Modul</button>
+                <span class="o_dm_toolbar_label" t-if="currentModule" t-esc="currentModule.label"/>
+                <button class="btn btn-sm btn-secondary"
+                        t-att-disabled="!state.data or state.moduleIndex >= state.data.modules.length - 1"
+                        t-on-click="() => this.shiftModule(1)">Modul ›</button>
+            </div>
+
+            <div class="o_dm_board" t-if="currentModule">
+                <t t-set="module" t-value="currentModule"/>
+                <table class="o_dm_table">
+                    <thead>
+                        <!-- group + module title -->
+                        <tr>
+                            <th class="o_dm_group_head" colspan="4">
+                                <div class="o_dm_group_name" t-esc="state.data.group.label"/>
+                            </th>
+                            <th class="o_dm_module_head" t-att-colspan="module.lessons.length + 1"
+                                t-esc="module.label"/>
+                        </tr>
+
+                        <!-- dates + summary header -->
+                        <tr>
+                            <th class="o_dm_subhead" colspan="4">
+                                Boshlang'ich sana: <b t-esc="state.data.group.start_date"/>
+                            </th>
+                            <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
+                                <th class="o_dm_date" t-esc="lesson.date"/>
+                            </t>
+                            <th class="o_dm_summary_head" rowspan="3">
+                                <div>Umumiy ko'rsatkich</div>
+                                <div class="o_dm_teacher_totals">
+                                    <t t-foreach="module.teacher_totals" t-as="tt" t-key="tt_index">
+                                        <div><t t-esc="tt.name"/> <t t-esc="tt.count"/> ta</div>
+                                    </t>
+                                </div>
+                            </th>
+                        </tr>
+
+                        <!-- lesson numbers -->
+                        <tr>
+                            <th class="o_dm_col_label">ID</th>
+                            <th class="o_dm_col_label o_dm_col_name">Ismi - familiya</th>
+                            <th class="o_dm_col_label">Statusi</th>
+                            <th class="o_dm_col_label">Guruhdan chetlatilgan sanasi</th>
+                            <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
+                                <th class="o_dm_dars" t-esc="lesson.pos_label"/>
+                            </t>
+                        </tr>
+
+                        <!-- teachers -->
+                        <tr>
+                            <th class="o_dm_subhead" colspan="4">Qaysi o'qituvchi dars o'tganligi</th>
+                            <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
+                                <th class="o_dm_teacher" t-esc="lesson.teacher"/>
+                            </t>
+                        </tr>
+
+                        <!-- per-lesson percentage -->
+                        <tr>
+                            <th class="o_dm_subhead o_dm_pct_label" colspan="4">Davomat ko'rsatkichlari</th>
+                            <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
+                                <th class="o_dm_pct" t-esc="lesson.pct"/>
+                            </t>
+                            <th class="o_dm_pct o_dm_summary_pct" t-esc="module.pct"/>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <tr t-foreach="state.data.students" t-as="student" t-key="student.line_id"
+                            t-attf-class="o_dm_row {{ student.state === 'cancelled' ? 'o_dm_row_cancelled' : '' }}">
+                            <td class="o_dm_id" t-esc="student.student_id"/>
+                            <td class="o_dm_name" t-esc="student.name"/>
+                            <td class="o_dm_state">
+                                <span t-attf-class="o_dm_badge o_dm_badge_{{ student.state }}"
+                                      t-esc="student.state_label"/>
+                            </td>
+                            <td class="o_dm_removed" t-esc="student.removed_date"/>
+                            <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
+                                <td t-attf-class="o_dm_cell o_dm_cell_{{ student.cells[lesson.id] || 'empty' }}">
+                                    <t t-if="student.cells[lesson.id] === 'present'">Bor</t>
+                                    <t t-elif="student.cells[lesson.id] === 'absent'">Yo'q</t>
+                                </td>
+                            </t>
+                            <td class="o_dm_summary" t-esc="student.summary[module.seq]"/>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div t-if="!currentModule" class="o_dm_loading">
+                Bu guruh uchun dars jadvali topilmadi.
+            </div>
+        </t>
+    </div>
+</t>
+
+</templates>

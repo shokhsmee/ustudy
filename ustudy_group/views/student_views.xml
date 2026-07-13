@@ -16,21 +16,40 @@
         <field name="inherit_id" ref="ustudy_student.view_student_partner_list"/>
         <field name="arch" type="xml">
             <xpath expr="//list" position="replace">
-                <list string="O'quvchilar" create="1" edit="1" delete="0">
+                <list string="O'quvchilar" create="1" edit="1" delete="0"
+                      decoration-danger="roster_lesson_balance &lt; 0"
+                      decoration-success="roster_lesson_balance &gt; 0">
                     <field name="name" string="Ism"/>
-                    <field name="student_status_summary" string="Status"/>
-                    <field name="current_module_summary" string="Joriy modul"/>
-                    <field name="passed_lessons_total" string="O'tilingan darslar"/>
-                    <field name="passed_lessons_amount_total"
-                           string="O'tilgan darslar summasi"
-                           widget="monetary"/>
-                    <field name="student_balance"
-                           string="O'quvchi balans"
-                           widget="monetary"/>
-                    <field name="davomat_summary" string="Davomati"/>
-                    <!-- "Vazifa holati" column injected by ustudy_homework. -->
+                    <field name="roster_course_start_date" string="Kurs boshlangan sana"/>
+                    <field name="roster_course_end_date" string="Kurs tugash sanasi"/>
+                    <field name="roster_direction_id" string="Yo'nalish"/>
+                    <field name="roster_group_id" string="Guruhi"/>
+                    <field name="roster_teacher_id" string="Ustozi"/>
+                    <field name="roster_current_module_id" string="Joriy modul"/>
+                    <field name="roster_current_lesson_no" string="Joriy dars"/>
+                    <field name="roster_paid_lessons" string="To'langan darslar soni"/>
+                    <field name="roster_payment_health"
+                           string="To'lov holati"
+                           widget="badge"
+                           decoration-danger="roster_payment_health == 'debtor'"
+                           decoration-success="roster_payment_health == 'paid'"/>
+                    <field name="roster_lesson_balance"
+                           string="To'lov statusi"
+                           decoration-danger="roster_lesson_balance &lt; 0"
+                           decoration-success="roster_lesson_balance &gt; 0"/>
+                    <!-- "Vazifa holati" column injected by ustudy_homework after davomat_summary. -->
 
                     <!-- Optional, hidden -->
+                    <field name="student_status_summary" string="Status" optional="hide"/>
+                    <field name="current_module_summary" string="Joriy modul (barcha)" optional="hide"/>
+                    <field name="passed_lessons_total" string="O'tilingan darslar" optional="hide"/>
+                    <field name="passed_lessons_amount_total"
+                           string="O'tilgan darslar summasi"
+                           widget="monetary" optional="hide"/>
+                    <field name="student_balance"
+                           string="O'quvchi balans"
+                           widget="monetary" optional="hide"/>
+                    <field name="davomat_summary" string="Davomati" optional="hide"/>
                     <field name="phone" optional="hide"/>
                     <field name="email" optional="hide"/>
                     <field name="state_id" string="Viloyat" optional="hide"/>
