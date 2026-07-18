@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- =========================================================
+         DARSNI YAKUNLASH WIZARD
+         Opens from the timetable "Complete" button: the teacher sets
+         the group's Dars vazifasi and the lesson completes with it.
+    ========================================================== -->
+    <record id="view_edu_lesson_complete_wizard_form" model="ir.ui.view">
+        <field name="name">edu.lesson.complete.wizard.form</field>
+        <field name="model">edu.lesson.complete.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Darsni yakunlash">
+                <div class="alert alert-info" role="alert">
+                    Darsni yakunlash uchun, dars vazifasini belgilang.
+                </div>
+                <group>
+                    <group>
+                        <field name="timetable_id" invisible="1"/>
+                        <field name="group_id"/>
+                        <field name="slide_id"/>
+                    </group>
+                    <group>
+                        <field name="name" placeholder="Dars raqami, Fan, sana"/>
+                        <field name="due_date"/>
+                    </group>
+                </group>
+                <group string="Tavsif">
+                    <field name="description" nolabel="1" colspan="2"
+                           placeholder="Vazifa tavsifi..."/>
+                </group>
+                <group string="Fayllar">
+                    <field name="attachment_ids" nolabel="1" colspan="2"
+                           widget="many2many_binary"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" string="Vazifa bilan yakunlash"
+                            type="object" class="btn-primary" data-hotkey="q"/>
+                    <button name="action_complete_only" string="Vazifasiz yakunlash"
+                            type="object" class="btn-secondary"
+                            confirm="Dars vazifasi qo'shilmaydi. Dars vazifasisiz yakunlansinmi?"/>
+                    <button string="Bekor qilish" special="cancel" class="btn-secondary"
+                            data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- =========================================================
+         TOPSHIRIQLAR (group smart button): LESSON LIST
+         One row per generated timetable lesson (with its slide and
+         dars status). The vazifa columns come from the lesson's OWN
+         Dars vazifasi and stay EMPTY until the teacher assigns one
+         via the Darsni yakunlash wizard.
+    ========================================================== -->
+    <record id="view_edu_timetable_group_tasks_list" model="ir.ui.view">
+        <field name="name">edu.timetable.group.tasks.list</field>
+        <field name="model">edu.timetable</field>
+        <!-- High priority: purpose-specific view, must NEVER be picked as the
+             model's default list (that would hijack the Jadval lists) — it is
+             only opened explicitly by action_view_group_homeworks. -->
+        <field name="priority" eval="100"/>
+        <field name="arch" type="xml">
+            <list string="Topshiriqlar" create="false"
+                  default_order="start_datetime asc">
+                <field name="lesson_task_id" column_invisible="1"/>
+                <field name="state" column_invisible="1"/>
+                <field name="lesson_sequence" string="No."/>
+                <field name="slide_id" string="Dars"/>
+                <field name="start_date" string="Dars sanasi" optional="show"/>
+                <field name="dars_holati" string="Dars holati" widget="badge"
+                       decoration-muted="state == 'scheduled'"
+                       decoration-warning="state == 'in_progress'"
+                       decoration-success="state == 'completed'"/>
+                <field name="task_number" string="Vazifa raqami" optional="show"/>
+                <field name="task_assigned_datetime" string="Vazifa berilgan vaqt"/>
+                <field name="task_due_date" string="Deadline"/>
+                <field name="task_done_ratio" string="Vazifa bajarish holati"/>
+                <field name="task_ungraded_display" string="Tekshirilmagan"/>
+                <field name="group_id" string="Guruh" optional="hide"/>
+                <field name="teacher_id" optional="hide"/>
+                <button name="action_open_lesson_task" type="object"
+                        icon="fa-external-link" title="Vazifani ochish"
+                        invisible="not lesson_task_id"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- =========================================================
+         GROUP LESSON TASKS (Dars vazifalari): LIST
+         Columns follow the Vazifalar bo'limi mockup.
+    ========================================================== -->
+    <record id="view_edu_homework_group_task_list" model="ir.ui.view">
+        <field name="name">edu.homework.group.task.list</field>
+        <field name="model">edu.homework</field>
+        <field name="priority" eval="100"/>
+        <field name="arch" type="xml">
+            <list string="Vazifalar" default_order="id desc">
+                <field name="task_number" string="Vazifa raqami"/>
+                <field name="lesson_label" string="Dars"/>
+                <field name="group_id" string="Guruh"/>
+                <field name="assigned_datetime" string="Vazifa berilgan vaqt"/>
+                <field name="due_date" string="Deadline"/>
+                <field name="done_ratio" string="Vazifa bajarish holati"/>
+                <field name="ungraded_count" string="Tekshirilmagan"/>
+                <field name="name" optional="hide"/>
+                <field name="teacher_id" optional="hide"/>
+                <field name="is_published" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- =========================================================
+         GROUP LESSON TASKS: FORM
+         Per-student roster (Vazifalar bolimi ichi mockup): every group
+         student on one row; Ball/Izoh editable inline — grading a
+         not-submitted student creates the submission on their behalf.
+    ========================================================== -->
+    <record id="view_edu_homework_group_task_form" model="ir.ui.view">
+        <field name="name">edu.homework.group.task.form</field>
+        <field name="model">edu.homework</field>
+        <field name="priority" eval="100"/>
+        <field name="arch" type="xml">
+            <form string="Dars vazifasi">
+                <header>
+                    <button name="action_open_submissions" type="object"
+                            string="Baholash (fayllar bilan)" class="btn-primary"
+                            icon="fa-pencil-square-o"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Vazifa nomi"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="task_number"/>
+                            <field name="group_id" options="{'no_create': True}"/>
+                            <field name="timetable_id" readonly="1"/>
+                            <field name="lesson_label"/>
+                            <field name="slide_id" options="{'no_create': True, 'no_open': True}"/>
+                        </group>
+                        <group>
+                            <field name="assigned_datetime"/>
+                            <field name="due_date" string="Deadline"/>
+                            <field name="pass_mark"/>
+                            <field name="is_published"/>
+                            <field name="done_ratio"/>
+                            <field name="ungraded_count"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="O'quvchilar" name="students">
+                            <field name="group_submission_ids">
+                                <list string="O'quvchilar" create="false"
+                                      delete="false" editable="bottom">
+                                    <field name="student_id" string="O'quvchi" readonly="1"/>
+                                    <field name="task_lesson_label" string="Dars" readonly="1" optional="show"/>
+                                    <field name="task_group_id" string="Guruh" readonly="1" optional="show"/>
+                                    <field name="task_assigned_datetime" string="Vazifa berilgan vaqt"
+                                           readonly="1" optional="show"/>
+                                    <field name="submit_date" string="Topshirilgan vaqt"
+                                           readonly="1" optional="hide"/>
+                                    <field name="mark" string="Bahosi"/>
+                                    <field name="state" string="Vazifa holat" readonly="1"
+                                           widget="badge"
+                                           decoration-success="state == 'graded'"
+                                           decoration-info="state == 'submitted'"
+                                           decoration-danger="state == 'failed'"
+                                           decoration-muted="state == 'not_submitted'"/>
+                                    <field name="task_due_date" string="Deadline" readonly="1" optional="show"/>
+                                    <field name="teacher_comment" string="Izoh" optional="show"/>
+                                    <field name="comment" string="O'quvchi izohi" readonly="1" optional="hide"/>
+                                    <field name="attempt_count" string="Urinishlar" readonly="1" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Tavsif va fayllar" name="description">
+                            <group>
+                                <field name="description" nolabel="1" colspan="2"
+                                       placeholder="Vazifa tavsifi..."/>
+                            </group>
+                            <field name="attachment_ids" widget="many2many_binary"/>
+                        </page>
+                        <page string="Barcha topshiriqlar" name="submissions"
+                              groups="base.group_system">
+                            <field name="submission_ids">
+                                <list editable="bottom">
+                                    <field name="student_id" readonly="1"/>
+                                    <field name="submit_date" readonly="1"/>
+                                    <field name="state" readonly="1" widget="badge"
+                                           decoration-info="state == 'submitted'"
+                                           decoration-success="state == 'graded'"
+                                           decoration-danger="state == 'failed'"/>
+                                    <field name="comment" readonly="1" string="O'quvchi izohi"/>
+                                    <field name="mark"/>
+                                    <field name="teacher_comment"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+</odoo>

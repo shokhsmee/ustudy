@@ -121,8 +121,26 @@ class EduStudentLessonReport(models.Model):
                     ON att.timetable_id = tt.id AND att.state = 'confirmed'
                 LEFT JOIN edu_attendance_line al
                     ON al.attendance_id = att.id AND al.student_id = gs.student_id
-                LEFT JOIN edu_homework hw
-                    ON hw.slide_id = tt.slide_id AND hw.is_published = true
+                -- Exactly ONE homework per lesson row: the lesson's own group
+                -- task (timetable_id = tt.id) wins over the course-wide slide
+                -- homework; other groups'/lessons' group tasks (group_id set)
+                -- never match. LATERAL + LIMIT 1 also guards against row
+                -- duplication when a slide carries several published homeworks.
+                LEFT JOIN LATERAL (
+                    SELECT h.id
+                    FROM edu_homework h
+                    WHERE h.is_published = true
+                      AND (
+                            h.timetable_id = tt.id
+                            OR (tt.slide_id IS NOT NULL
+                                AND h.slide_id = tt.slide_id
+                                AND h.group_id IS NULL
+                                AND h.timetable_id IS NULL)
+                      )
+                    ORDER BY CASE WHEN h.timetable_id = tt.id THEN 0 ELSE 1 END,
+                             h.id
+                    LIMIT 1
+                ) hw ON true
                 -- One row per student: pick the most relevant submission
                 -- (passed first, then failed, then newest) so resubmissions
                 -- don't duplicate the student's roster row.
@@ -187,11 +205,17 @@ class EduStudentLessonReport(models.Model):
                 # submission to live on. edu.homework.create() fills channel /
                 # pass_mark defaults and re-syncs timetable homework flags.
                 # Search first: row.homework_id is stale within this batch, and
-                # grading several students at once must not duplicate it.
+                # grading several students at once must not duplicate it. Same
+                # preference order as the view: the lesson's own group task,
+                # then the course-wide slide homework — never another group's.
                 Homework = self.env["edu.homework"]
                 homework = Homework.search([
+                    ("timetable_id", "=", row.timetable_id.id),
+                    ("is_published", "=", True),
+                ], limit=1) or Homework.search([
                     ("slide_id", "=", row.slide_id.id),
                     ("is_published", "=", True),
+                    ("group_id", "=", False),
                 ], limit=1) or Homework.create({
                     "name": row.slide_id.name,
                     "slide_id": row.slide_id.id,

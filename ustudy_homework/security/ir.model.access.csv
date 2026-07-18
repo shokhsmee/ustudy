@@ -10,3 +10,4 @@ access_edu_homework_portal,access_edu_homework_portal,model_edu_homework,base.gr
 access_edu_homework_public,access_edu_homework_public,model_edu_homework,base.group_public,1,0,0,0
 access_edu_student_lesson_report_user,edu.student.lesson.report,model_edu_student_lesson_report,base.group_user,1,0,0,0
 access_edu_student_lesson_report_portal,edu.student.lesson.report portal,model_edu_student_lesson_report,base.group_portal,1,0,0,0
+access_edu_lesson_complete_wizard,access_edu_lesson_complete_wizard,model_edu_lesson_complete_wizard,base.group_user,1,1,1,1

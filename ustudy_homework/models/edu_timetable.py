@@ -17,6 +17,80 @@ class EduTimetable(models.Model):
     group_student_count = fields.Integer(compute="_compute_homework_stats", store=False)
     submission_ratio = fields.Char(compute="_compute_homework_stats", store=False)
 
+    # The lesson's OWN Dars vazifasi (group task created by the Darsni
+    # yakunlash wizard) — unlike homework_id it never falls back to the
+    # course-wide slide homework, so the Topshiriqlar lesson list can show
+    # empty vazifa columns until the teacher actually assigns one.
+    lesson_task_id = fields.Many2one(
+        "edu.homework",
+        string="Dars vazifasi",
+        compute="_compute_lesson_task_id",
+        store=False,
+    )
+    task_number = fields.Char(
+        related="lesson_task_id.task_number", string="Vazifa raqami", readonly=True)
+    task_assigned_datetime = fields.Datetime(
+        related="lesson_task_id.assigned_datetime", string="Vazifa berilgan vaqt",
+        readonly=True)
+    task_due_date = fields.Date(
+        related="lesson_task_id.due_date", string="Deadline", readonly=True)
+    task_done_ratio = fields.Char(
+        related="lesson_task_id.done_ratio", string="Vazifa bajarish holati",
+        readonly=True)
+    # Char (not the related integer) so lessons without a task render an
+    # EMPTY cell instead of a misleading 0.
+    task_ungraded_display = fields.Char(
+        string="Tekshirilmagan",
+        compute="_compute_task_ungraded_display",
+        store=False,
+    )
+    # Uzbek lesson status for the Topshiriqlar list (mockup wording).
+    dars_holati = fields.Char(
+        string="Dars holati",
+        compute="_compute_dars_holati",
+        store=False,
+    )
+
+    def _compute_lesson_task_id(self):
+        ids = [r.id for r in self if isinstance(r.id, int)]
+        by_tt = {}
+        if ids:
+            tasks = self.env["edu.homework"].search(
+                [("timetable_id", "in", ids)], order="id asc")
+            for task in tasks:
+                by_tt.setdefault(task.timetable_id.id, task)
+        for rec in self:
+            rec.lesson_task_id = by_tt.get(rec.id) if isinstance(rec.id, int) else False
+
+    def _compute_task_ungraded_display(self):
+        for rec in self:
+            task = rec.lesson_task_id
+            rec.task_ungraded_display = str(task.ungraded_count) if task else ""
+
+    def _compute_dars_holati(self):
+        labels = {
+            "scheduled": "Boshlanmagan",
+            "in_progress": "Boshlangan",
+            "completed": "Yakunlangan",
+            "cancelled": "Bekor qilingan",
+        }
+        for rec in self:
+            rec.dars_holati = labels.get(rec.state or "", "")
+
+    def action_open_lesson_task(self):
+        """Open this lesson's Dars vazifasi form (per-student roster)."""
+        self.ensure_one()
+        if not self.lesson_task_id:
+            raise UserError(_("Bu dars uchun hali dars vazifasi qo'shilmagan."))
+        return {
+            "name": self.lesson_task_id.name,
+            "type": "ir.actions.act_window",
+            "res_model": "edu.homework",
+            "res_id": self.lesson_task_id.id,
+            "view_mode": "form",
+            "views": [(self.env.ref("ustudy_homework.view_edu_homework_group_task_form").id, "form")],
+        }
+
     homework_pass_mark = fields.Float(
         string="Pass Ball",
         related="homework_id.pass_mark",
@@ -51,17 +125,26 @@ class EduTimetable(models.Model):
 
     @api.depends("slide_id")
     def _compute_homework_id(self):
-        # Homework is tied to the lesson's SLIDE only. With no slide selected
-        # there is no homework for this lesson (we must NOT fall back to any
-        # homework in the course channel, or unrelated homework would show up
-        # on slide-less lessons).
+        # The lesson's own "Dars vazifasi" (homework created for THIS timetable
+        # by the Darsni yakunlash wizard) wins; otherwise fall back to the
+        # course-wide slide homework. Group-scoped tasks of OTHER lessons or
+        # groups must never be picked up, hence group_id = False on the
+        # fallback. With no slide selected there is no fallback (we must NOT
+        # grab any homework in the course channel, or unrelated homework would
+        # show up on slide-less lessons).
         Homework = self.env["edu.homework"]
         for rec in self:
             hw = False
-            if rec.slide_id:
+            if isinstance(rec.id, int):
+                hw = Homework.search([
+                    ("timetable_id", "=", rec.id),
+                    ("is_published", "=", True),
+                ], limit=1)
+            if not hw and rec.slide_id:
                 hw = Homework.search([
                     ("slide_id", "=", rec.slide_id.id),
                     ("is_published", "=", True),
+                    ("group_id", "=", False),
                 ], limit=1)
             rec.homework_id = hw.id if hw else False
 
@@ -181,6 +264,25 @@ class EduTimetable(models.Model):
         res = super().write(vals)
         self._apply_homework_submission_commands(sub_commands)
         return res
+
+    def action_mark_completed(self):
+        """Completing a lesson goes through the Darsni yakunlash wizard: the
+        teacher defines the group's Dars vazifasi (extra group-scoped
+        homework) and the lesson is completed by the wizard's buttons. The
+        wizard calls back with skip_lesson_task_wizard to actually complete.
+        A lesson that already has its own task completes directly."""
+        if self.env.context.get("skip_lesson_task_wizard") or len(self) != 1:
+            return super().action_mark_completed()
+        if self.env["edu.homework"].search_count([("timetable_id", "=", self.id)]):
+            return super().action_mark_completed()
+        return {
+            "name": _("Darsni yakunlash"),
+            "type": "ir.actions.act_window",
+            "res_model": "edu.lesson.complete.wizard",
+            "view_mode": "form",
+            "target": "new",
+            "context": {"default_timetable_id": self.id},
+        }
 
     def action_view_group_homework_submissions(self):
         self.ensure_one()

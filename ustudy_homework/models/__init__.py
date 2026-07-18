@@ -6,3 +6,5 @@ from . import res_partner
 from . import edu_timetable
 from . import edu_student_lesson_report
 from . import edu_group_student
+from . import edu_group
+from . import lesson_complete_wizard

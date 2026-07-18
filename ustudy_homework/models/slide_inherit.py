@@ -87,6 +87,8 @@ class SlideSlide(models.Model):
 
         Returns the published homeworks only if the lesson has been started for
         ``user`` (see :meth:`lesson_started_for`); otherwise an empty recordset.
+        Group lesson tasks are additionally limited to their own group's
+        students (edu.homework.is_visible_for).
         """
         self.ensure_one()
         published = self.homework_ids.filtered(lambda h: h.is_published)
@@ -94,7 +96,7 @@ class SlideSlide(models.Model):
             return published
         if not self.lesson_started_for(user):
             return self.env['edu.homework']
-        return published
+        return published.filtered(lambda h: h.is_visible_for(user))
 
     def get_my_homework_mark(self):
         """Return latest graded mark for this slide for current user (or False)."""

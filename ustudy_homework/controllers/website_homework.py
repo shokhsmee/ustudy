@@ -36,7 +36,8 @@ class WebsiteEduHomework(http.Controller):
     )
     def slide_homeworks_json(self, slide_id, **kw):
         # Only expose this slide's homework once the lesson has been started
-        # for the requesting user's group.
+        # for the requesting user's group. Group lesson tasks are further
+        # limited to that group's own students (is_visible_for).
         slide = request.env['slide.slide'].sudo().browse(slide_id)
         if not slide.exists() or not slide.lesson_started_for(request.env.user):
             hw_objs = request.env['edu.homework']
@@ -44,7 +45,9 @@ class WebsiteEduHomework(http.Controller):
             hw_objs = request.env['edu.homework'].sudo().search([
                 ('slide_id', '=', slide_id),
                 ('is_published', '=', True),
-            ], order='due_date asc')
+            ], order='due_date asc').filtered(
+                lambda h: h.is_visible_for(request.env.user)
+            )
 
         base_url = request.env['ir.config_parameter'].sudo().get_param('web.base.url') or ''
         result = [{

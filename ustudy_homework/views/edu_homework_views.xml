@@ -11,6 +11,8 @@
             <list string="Homeworks">
                 <field name="name"/>
                 <!-- <field name="channel_id"/> -->
+                <field name="group_id" optional="show"/>
+                <field name="task_number" optional="hide"/>
                 <field name="teacher_id"/>
                 <field name="due_date"/>
                 <field name="submission_count"/>
@@ -130,7 +132,9 @@
         <field name="name">edu.homework.submission.list</field>
         <field name="model">edu.homework.submission</field>
         <field name="arch" type="xml">
-            <list string="Submissions" editable="bottom">
+            <!-- Not editable: a row click must open the grading form
+                 (view_edu_homework_submission_form) instead of inline-editing. -->
+            <list string="Submissions">
                 <field name="homework_id"/>
                 <field name="student_id"/>
                 <field name="user_id"/>
@@ -145,6 +149,41 @@
                 <field name="xp_amount" string="XP" readonly="1" optional="show"/>
                 <field name="teacher_comment"/>
             </list>
+        </field>
+    </record>
+
+    <!-- Grading form opened when a submission line is clicked (timetable
+         Vazifalar sheet / Marks menu). -->
+    <record id="view_edu_homework_submission_form" model="ir.ui.view">
+        <field name="name">edu.homework.submission.form</field>
+        <field name="model">edu.homework.submission</field>
+        <field name="arch" type="xml">
+            <form string="Submission">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="not_submitted,submitted,graded,failed"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Vazifa">
+                            <field name="homework_id"/>
+                            <field name="student_id"/>
+                            <field name="user_id"/>
+                            <field name="submit_date"/>
+                        </group>
+                        <group string="Baholash">
+                            <field name="mark"/>
+                            <field name="pass_mark"/>
+                            <field name="teacher_comment"/>
+                            <field name="xp_amount" string="XP" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Talaba javobi">
+                        <field name="comment" nolabel="1" placeholder="Talaba izohi..."/>
+                        <field name="attachment_ids" widget="many2many_binary"/>
+                    </group>
+                </sheet>
+            </form>
         </field>
     </record>
 

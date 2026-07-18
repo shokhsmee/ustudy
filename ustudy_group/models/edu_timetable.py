@@ -249,14 +249,19 @@ class EduTimetable(models.Model):
                 continue
 
             Homework = rec.env["edu.homework"]
-            rec.has_homework = bool(
-                Homework.search_count(
-                    [
-                        ("slide_id", "=", rec.slide_id.id),
-                        ("is_published", "=", True),
-                    ]
-                )
-            )
+            domain = [
+                ("slide_id", "=", rec.slide_id.id),
+                ("is_published", "=", True),
+            ]
+            # Group lesson tasks (ustudy_homework) only count for their own
+            # group — another group's task must not flag this lesson.
+            if "group_id" in Homework._fields:
+                domain += [
+                    "|",
+                    ("group_id", "=", False),
+                    ("group_id", "=", rec.group_id.id),
+                ]
+            rec.has_homework = bool(Homework.search_count(domain))
 
     @api.depends("group_id", "slide_id")
     def _compute_submission_ratio(self):
@@ -313,18 +318,25 @@ class EduTimetable(models.Model):
                 ("id", "!=", record.id),
                 ("room_id", "=", record.room_id.id),
                 ("state", "!=", "cancelled"),
+                # Archived groups' lessons don't hold the room (the timetable
+                # board hides them too, so a conflict would be invisible).
+                # Checked via group_id, not the stored group_active copy: a
+                # NULL in the copy would silently drop a live lesson here.
+                ("group_id.active", "=", True),
                 ("start_datetime", "<", record.end_datetime),
                 ("end_datetime", ">", record.start_datetime),
             ]
 
             conflicts = self.search(domain, limit=1)
             if conflicts:
+                start_local = fields.Datetime.context_timestamp(record, conflicts.start_datetime)
+                end_local = fields.Datetime.context_timestamp(record, conflicts.end_datetime)
                 raise ValidationError(
                     _(
                         "Room %(room)s is already booked from %(start)s to %(end)s for %(group)s",
                         room=record.room_id.name,
-                        start=conflicts.start_datetime,
-                        end=conflicts.end_datetime,
+                        start=start_local.strftime("%d.%m.%Y %H:%M"),
+                        end=end_local.strftime("%d.%m.%Y %H:%M"),
                         group=conflicts.group_id.name,
                     )
                 )
@@ -448,20 +460,35 @@ class EduGroup(models.Model):
         local_dt = user_tz.localize(local_dt)
         return local_dt.astimezone(pytz.UTC).replace(tzinfo=None)
 
-    def _compute_end_date_from_count(self):
-        """Return date of Nth lesson based on start_date + lesson_days + lesson_count."""
+    def _planned_lesson_total(self):
+        """How many timetable entries this group should hold.
+
+        lesson_count ("Jami darslar soni") is the course's TOTAL lesson
+        number, not the number of entries to create: a group starting at
+        lesson 109 of a 144-lesson course holds 36 entries (No. 109..144).
+        Returns None when lesson-count mode is off."""
         self.ensure_one()
-        if not self.start_date or not self.lesson_days or not self.lesson_count:
+        if not (self.use_lesson_count and self.lesson_count):
+            return None
+        start_no = max(self.start_lesson_number or 1, 1)
+        return self.lesson_count - start_no + 1
+
+    def _compute_end_date_from_count(self):
+        """Return the date of the group's LAST lesson based on start_date +
+        lesson_days + planned lesson total (see _planned_lesson_total)."""
+        self.ensure_one()
+        total = self._planned_lesson_total()
+        if not self.start_date or not self.lesson_days or not total or total <= 0:
             return False
 
         allowed = set(self.lesson_days.mapped("sequence"))  # 1..7 (Mon..Sun)
         d = self.start_date
         lessons = 0
 
-        while lessons < self.lesson_count:
+        while lessons < total:
             if (d.weekday() + 1) in allowed:
                 lessons += 1
-                if lessons == self.lesson_count:
+                if lessons == total:
                     return d
             d += timedelta(days=1)
 
@@ -478,21 +505,25 @@ class EduGroup(models.Model):
             if end_date:
                 self.end_date = end_date
 
-    @api.onchange("start_date", "lesson_days", "lesson_count", "use_lesson_count")
+    @api.onchange("start_date", "lesson_days", "lesson_count", "use_lesson_count",
+                  "start_lesson_number")
     def _onchange_end_date_from_count(self):
         for rec in self:
             if not rec.use_lesson_count:
                 continue
             if not rec.start_date or not rec.lesson_days or not rec.lesson_count:
                 continue
+            total = rec._planned_lesson_total()
+            if not total or total <= 0:
+                continue
 
             allowed = set(rec.lesson_days.mapped("sequence"))
             d = rec.start_date
             lessons = 0
-            while lessons < rec.lesson_count:
+            while lessons < total:
                 if (d.weekday() + 1) in allowed:
                     lessons += 1
-                    if lessons == rec.lesson_count:
+                    if lessons == total:
                         rec.end_date = d
                         break
                 d += timedelta(days=1)
@@ -561,6 +592,17 @@ class EduGroup(models.Model):
         if regen_from_date > self.end_date:
             raise UserError(_("Nothing to regenerate: today is after the end date."))
 
+        # Data guard BEFORE any destructive step: a start lesson beyond the
+        # course total means "Jami darslar soni" holds stale/old-style data —
+        # wiping the schedule from it would destroy valid lessons.
+        planned_total = self._planned_lesson_total()
+        if planned_total is not None and planned_total <= 0:
+            raise UserError(_(
+                "Jami darslar soni (%s) boshlangan darsdan (%s) kichik. Avval "
+                "\"Jami darslar soni\" maydonini kursning umumiy darslar soniga "
+                "to'g'rilang, keyin jadvalni qayta yarating.",
+                self.lesson_count, self.start_lesson_number))
+
         regen_from_dt_utc = self._make_utc_datetime(regen_from_date, 0.0)
 
         Timetable = self.env["edu.timetable"]
@@ -608,10 +650,33 @@ class EduGroup(models.Model):
 
         timetable_entries = []
         current_date = regen_from_date
-        # Lessons already held before the regeneration day count toward the total.
+        # Lessons already held before the regeneration day count toward the
+        # planned total (which respects the start offset — see
+        # _planned_lesson_total).
         remaining = None
-        if self.use_lesson_count and self.lesson_count:
-            remaining = self.lesson_count - len(past_entries)
+        if planned_total is not None:
+            # Only past entries are subtracted here: kept (started) entries on
+            # or after the regeneration day are decremented inside the loop
+            # when their date is reached — subtracting them here too would
+            # double-count them.
+            remaining = planned_total - len(past_entries)
+            if remaining <= 0:
+                # The group already holds its full plan (or more): the wipe
+                # above removed the excess scheduled lessons — that IS the fix
+                # for over-generated schedules, so report it instead of the
+                # generic "nothing generated" error.
+                return {
+                    "type": "ir.actions.client",
+                    "tag": "display_notification",
+                    "params": {
+                        "message": _(
+                            "Reja bo'yicha darslar soni to'lgan (%s ta). Bugundan "
+                            "keyingi ortiqcha rejalashtirilgan darslar o'chirildi.",
+                            planned_total),
+                        "type": "success",
+                        "sticky": False,
+                    },
+                }
 
         while current_date <= self.end_date and (remaining is None or remaining > 0):
             if current_date in kept_dates:
@@ -693,7 +758,13 @@ class EduGroup(models.Model):
         # The Nth day of the group carries "No." = start_lesson_number + (N-1),
         # and we attach the slide whose lesson_no matches that "No.".
         next_lesson_no = max(self.start_lesson_number or 1, 1)
-        remaining = self.lesson_count if (self.use_lesson_count and self.lesson_count) else None
+        # Planned total respects the start offset: starting at lesson 109 of a
+        # 144-lesson course generates 36 entries (No. 109..144), not 144.
+        remaining = self._planned_lesson_total()
+        if remaining is not None and remaining <= 0:
+            raise UserError(_(
+                "Boshlangan dars (%s) jami darslar sonidan (%s) katta yoki teng emas — "
+                "jadval yaratilmaydi.", next_lesson_no, self.lesson_count))
 
         while current_date <= self.end_date and (remaining is None or remaining > 0):
             weekday_num = current_date.weekday()

@@ -87,6 +87,18 @@ class EduHomeworkSubmission(models.Model):
 
     pass_mark = fields.Float(related="homework_id.pass_mark", store=True, readonly=True)
 
+    # Display-only columns for the group lesson-task roster (mockup: O'quvchi,
+    # Dars, Guruh, Vazifa berilgan vaqt, Bahosi, Vazifa holat, Deadline).
+    task_group_id = fields.Many2one(
+        related="homework_id.group_id", string="Guruh", readonly=True)
+    task_lesson_label = fields.Char(
+        related="homework_id.lesson_label", string="Dars", readonly=True)
+    task_assigned_datetime = fields.Datetime(
+        related="homework_id.assigned_datetime", string="Vazifa berilgan vaqt",
+        readonly=True)
+    task_due_date = fields.Date(
+        related="homework_id.due_date", string="Deadline", readonly=True)
+
     # XP (gamification karma) bookkeeping: award once when the homework is passed.
     xp_awarded = fields.Boolean(string="XP Awarded", default=False, copy=False, readonly=True)
     xp_amount = fields.Integer(string="XP Awarded (amount)", default=0, copy=False, readonly=True)

@@ -36,9 +36,14 @@ class EduGroupStudent(models.Model):
                 rec.vazifa_ratio = "0/0"
                 continue
 
+            # Course-wide homework plus THIS group's own lesson tasks; other
+            # groups' tasks on the shared slides must not inflate the total.
             homeworks = Homework.search([
                 ("slide_id", "in", slide_ids),
                 ("is_published", "=", True),
+                "|",
+                ("group_id", "=", False),
+                ("group_id", "=", rec.group_id.id),
             ])
             total = len(homeworks)
             if not total:

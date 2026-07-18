@@ -68,12 +68,20 @@ class ResPartner(models.Model):
     )
 
     def _compute_lesson_homework_count(self):
+        # Batched: edu.student.lesson.report is a heavy SQL view (~22k rows,
+        # ~1.8s to materialize). One grouped query for the whole recordset
+        # costs the same as a single per-row search_count, so never loop.
         Report = self.env["edu.student.lesson.report"]
-
+        counts = {}
+        if self.ids:
+            for student, count in Report._read_group(
+                [("student_id", "in", self.ids)],
+                groupby=["student_id"],
+                aggregates=["__count"],
+            ):
+                counts[student.id] = count
         for partner in self:
-            partner.lesson_homework_count = Report.search_count([
-                ("student_id", "=", partner.id)
-            ])
+            partner.lesson_homework_count = counts.get(partner.id, 0)
 
     ops_passed_count = fields.Integer(
         string="Passed Homeworks",
@@ -94,17 +102,30 @@ class ResPartner(models.Model):
     )
 
     def _compute_ops_stats(self):
+        # This drives the "Vazifa holati" column on the Talabalar list. It was
+        # 2 search_count()s per row against the heavy edu.student.lesson.report
+        # SQL view (~1.8s each) => an 80-row page did ~290s of DB work and hit
+        # limit_time_real ("cursor already closed"). Two grouped queries for the
+        # whole recordset cost the same ~1.8s each regardless of row count.
         Report = self.env["edu.student.lesson.report"]
-
+        total_map = {}
+        passed_map = {}
+        if self.ids:
+            for student, count in Report._read_group(
+                [("student_id", "in", self.ids), ("homework_id", "!=", False)],
+                groupby=["student_id"],
+                aggregates=["__count"],
+            ):
+                total_map[student.id] = count
+            for student, count in Report._read_group(
+                [("student_id", "in", self.ids), ("homework_state", "=", "graded")],
+                groupby=["student_id"],
+                aggregates=["__count"],
+            ):
+                passed_map[student.id] = count
         for partner in self:
-            total = Report.search_count([
-                ("student_id", "=", partner.id),
-                ("homework_id", "!=", False),
-            ])
-            passed = Report.search_count([
-                ("student_id", "=", partner.id),
-                ("homework_state", "=", "graded"),
-            ])
+            total = total_map.get(partner.id, 0)
+            passed = passed_map.get(partner.id, 0)
             partner.ops_total_count = total
             partner.ops_passed_count = passed
             partner.ops_ratio = f"{passed}/{total}"
@@ -154,20 +175,29 @@ class ResPartner(models.Model):
     )
 
     def _compute_attendance_stats(self):
+        # Batched for the same reason as _compute_ops_stats: never run one
+        # search_count per row against the edu.student.lesson.report SQL view.
         Report = self.env["edu.student.lesson.report"]
-
+        base = [("timetable_state", "in", ["in_progress", "completed"])]
+        total_map = {}
+        present_map = {}
+        if self.ids:
+            for student, count in Report._read_group(
+                [("student_id", "in", self.ids)] + base,
+                groupby=["student_id"],
+                aggregates=["__count"],
+            ):
+                total_map[student.id] = count
+            for student, count in Report._read_group(
+                [("student_id", "in", self.ids)] + base
+                + [("attendance_status", "=", "present")],
+                groupby=["student_id"],
+                aggregates=["__count"],
+            ):
+                present_map[student.id] = count
         for partner in self:
-            domain = [
-                ("student_id", "=", partner.id),
-                ("timetable_state", "in", ["in_progress", "completed"]),
-            ]
-
-            total = Report.search_count(domain)
-
-            present = Report.search_count(domain + [
-                ("attendance_status", "=", "present")
-            ])
-
+            total = total_map.get(partner.id, 0)
+            present = present_map.get(partner.id, 0)
             partner.attendance_total_count = total
             partner.attendance_present_count = present
             partner.attendance_ratio = f"{present}/{total}"
