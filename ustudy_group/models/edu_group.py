@@ -145,8 +145,32 @@ class EduGroup(models.Model):
         string="Students",
     )
 
+    # Same inverse as student_line_ids, split by state via a domain baked into
+    # the FIELD definition (a view-level domain on a one2many does not reliably
+    # filter displayed rows, so we use dedicated fields instead):
+    #   active_student_line_ids    -> the working roster (everything but removed)
+    #   cancelled_student_line_ids -> removed / Guruhdan chetlatilgan students
+    active_student_line_ids = fields.One2many(
+        "edu.group.student",
+        "group_id",
+        string="O'quvchilar",
+        domain=[("state", "!=", "cancelled")],
+    )
+    cancelled_student_line_ids = fields.One2many(
+        "edu.group.student",
+        "group_id",
+        string="Guruhdan chetlatilganlar",
+        domain=[("state", "=", "cancelled")],
+    )
+
     student_count = fields.Integer(
         string="Students",
+        compute="_compute_student_count",
+        store=False,
+    )
+
+    cancelled_student_count = fields.Integer(
+        string="Chetlatilgan o'quvchilar",
         compute="_compute_student_count",
         store=False,
     )
@@ -356,9 +380,13 @@ class EduGroup(models.Model):
         }
 
     @api.depends("student_line_ids")
+    @api.depends("student_line_ids", "student_line_ids.state")
     def _compute_student_count(self):
         for group in self:
             group.student_count = len(group.student_line_ids)
+            group.cancelled_student_count = len(
+                group.student_line_ids.filtered(lambda l: l.state == "cancelled")
+            )
 
     @api.depends("timetable_ids.slide_id", "timetable_ids.state")
     def _compute_group_lesson_count(self):
@@ -713,7 +741,7 @@ class EduGroupStudent(models.Model):
             ("active", "Active"),
             ("completed", "Completed"),
             ("frozen", "Frozen"),
-            ("cancelled", "Cancelled"),
+            ("cancelled", "Guruhdan chetlatilgan"),
         ],
         default="active",
     )
@@ -1180,6 +1208,36 @@ class EduGroupStudent(models.Model):
 
     
     
+    def action_remove_from_group(self):
+        """Guruhdan chiqarish: soft-remove a student from the group.
+
+        The enrollment is marked 'cancelled' (label: Guruhdan chetlatilgan)
+        rather than deleted, so the student's lesson/payment history stays
+        intact and they can be re-added later via action_restore_to_group.
+        Cancelled students are excluded from attendance rosters.
+        """
+        for line in self:
+            if line.state == "cancelled":
+                continue
+            line.write({"state": "cancelled"})
+            line.group_id.message_post(
+                body=_("➖ %s guruhdan chetlatildi.") % (line.student_id.name or "")
+            )
+
+    def action_restore_to_group(self):
+        """Guruhga qo'shish: restore a previously removed student.
+
+        Sets the enrollment back to 'active'; the student keeps the module and
+        lesson position they had when they were removed.
+        """
+        for line in self:
+            if line.state != "cancelled":
+                continue
+            line.write({"state": "active"})
+            line.group_id.message_post(
+                body=_("➕ %s qayta guruhga qo'shildi.") % (line.student_id.name or "")
+            )
+
     def increment_lesson_count(self):
         """Increment lesson count and handle module completion"""
         self.ensure_one()

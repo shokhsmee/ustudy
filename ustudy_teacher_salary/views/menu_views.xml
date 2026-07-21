@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ===== Ustoz oyligi group under To'lovlar: expense mgr / chief / admin ===== -->
+    <menuitem id="menu_teacher_salary_group"
+              name="Ustoz oyligi"
+              parent="edu_finance.menu_finance_root"
+              sequence="40"
+              groups="edu_finance.group_finance_expense_manager"/>
+
+    <menuitem id="menu_teacher_salary_transactions"
+              name="Oylik tranzaksiyalari"
+              parent="menu_teacher_salary_group"
+              action="action_salary_line"
+              sequence="10"/>
+
+    <menuitem id="menu_teacher_salary_balances"
+              name="Ustozlar balansi"
+              parent="menu_teacher_salary_group"
+              action="action_teacher_salary_balance"
+              sequence="20"/>
+
+    <!-- ===== Settings under Konfiguratsiya (finance admins only) ===== -->
+    <menuitem id="menu_finance_salary_settings"
+              name="Ustoz oyligi sozlamalari"
+              parent="edu_finance.menu_finance_configuration"
+              sequence="90"/>
+
+    <menuitem id="menu_finance_salary_config"
+              name="To'lovlar sozlamalari"
+              parent="menu_finance_salary_settings"
+              action="action_finance_salary_config_settings"
+              sequence="5"/>
+
+    <menuitem id="menu_finance_salary_tiers"
+              name="Toifa darajalari"
+              parent="menu_finance_salary_settings"
+              action="action_salary_tier"
+              sequence="10"/>
+
+    <menuitem id="menu_finance_salary_categories"
+              name="Toifalar"
+              parent="menu_finance_salary_settings"
+              action="action_salary_category"
+              sequence="20"/>
+
+</odoo>

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form_amocrm" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.amocrm</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="amoCRM" string="amoCRM" name="amocrm_connector"
+                     logo="/amocrm_connector/static/description/icon.png">
+                    <block title="Ulanish" name="amocrm_connection"
+                           help="amoCRM private-integration uzoq muddatli (long-lived) token orqali ulanish.">
+                        <setting string="Base URL"
+                                 help="Sizning amoCRM manzilingiz, masalan https://subdomain.amocrm.ru">
+                            <field name="amocrm_base_url"
+                                   placeholder="https://subdomain.amocrm.ru"/>
+                        </setting>
+                        <setting string="Access Token"
+                                 help="amoCRM'da yaratilgan uzoq muddatli integratsiya tokeni">
+                            <field name="amocrm_access_token" password="True"
+                                   placeholder="eyJ0eXAiOiJKV1QiLCJhbGciOi..."/>
+                        </setting>
+                        <setting string="Ulanishni tekshirish"
+                                 help="Kiritilgan token bilan amoCRM hisobiga ulanishni sinab ko'radi.">
+                            <button name="action_amocrm_test_connection" type="object"
+                                    string="Ulanishni tekshirish" class="btn-secondary"
+                                    icon="fa-plug"/>
+                        </setting>
+                    </block>
+                    <block title="Xodimlar (foydalanuvchilar)" name="amocrm_employees"
+                           help="amoCRM xodimlarini Odoo ga sinxronlab, har birini Odoo foydalanuvchisiga bog'lang.">
+                        <setting string="Xodimlarni sinxronlash"
+                                 help="amoCRM'dagi barcha foydalanuvchilarni Odoo ga yuklaydi/yangilaydi.">
+                            <button name="action_amocrm_sync_employees" type="object"
+                                    string="Xodimlarni sinxronlash" class="btn-primary"
+                                    icon="fa-refresh"/>
+                        </setting>
+                        <setting string="Xodimlar ro'yxati"
+                                 help="Sinxronlangan xodimlar ro'yxatini ochib, Odoo foydalanuvchilariga bog'lang.">
+                            <button name="action_amocrm_open_employees" type="object"
+                                    string="amoCRM xodimlari" class="btn-link"
+                                    icon="fa-users"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

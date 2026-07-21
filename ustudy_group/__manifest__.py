@@ -1,6 +1,6 @@
 {
     "name": "Ustudy Groups",
-    "version": "1.11.0",
+    "version": "1.12.1",
     "author": "Ustudy",
     "depends": [
         "ustudy_student",

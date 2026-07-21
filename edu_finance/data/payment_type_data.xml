@@ -5,34 +5,39 @@
         <record id="payment_type_tuition" model="cc.payment.type">
             <field name="name">Tuition Fee</field>
             <field name="code">tuition</field>
+            <field name="direction">kirim</field>
             <field name="type_category">student</field>
             <field name="sequence">1</field>
         </record>
-        
+
         <record id="payment_type_kpi_bonus" model="cc.payment.type">
             <field name="name">KPI Bonus</field>
             <field name="code">kpi_bonus</field>
+            <field name="direction">chiqim</field>
             <field name="type_category">teacher</field>
             <field name="sequence">2</field>
         </record>
-        
+
         <record id="payment_type_salary" model="cc.payment.type">
             <field name="name">Salary</field>
             <field name="code">salary</field>
+            <field name="direction">chiqim</field>
             <field name="type_category">employee</field>
             <field name="sequence">3</field>
         </record>
-        
+
         <record id="payment_type_registration" model="cc.payment.type">
             <field name="name">Registration Fee</field>
             <field name="code">registration</field>
+            <field name="direction">kirim</field>
             <field name="type_category">student</field>
             <field name="sequence">4</field>
         </record>
-        
+
         <record id="payment_type_other" model="cc.payment.type">
             <field name="name">Other</field>
             <field name="code">other</field>
+            <field name="direction">kirim</field>
             <field name="type_category">other</field>
             <field name="sequence">100</field>
         </record>

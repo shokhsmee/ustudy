@@ -1,41 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    
-    <!-- Main Menu -->
+
+    <!-- Main App -->
     <menuitem id="menu_finance_root"
               name="To'lovlar"
               sequence="60"
               web_icon="edu_finance,static/description/icon.png"/>
-    
-    <!-- Finance Submenu -->
-    <menuitem id="menu_finance_finance"
-              name="Finance"
+
+    <!-- Kirimlar (income): income manager, chief, admin (implied) + viewer -->
+    <menuitem id="menu_finance_income"
+              name="Kirimlar"
               parent="menu_finance_root"
-              sequence="10"/>
-    
+              action="action_cc_finance_income"
+              sequence="10"
+              groups="group_finance_income_manager,group_finance_viewer"/>
+
+    <!-- Chiqimlar (expense): expense manager, chief, admin (implied) + viewer -->
+    <menuitem id="menu_finance_expense"
+              name="Chiqimlar"
+              parent="menu_finance_root"
+              action="action_cc_finance_expense"
+              sequence="20"
+              groups="group_finance_expense_manager,group_finance_viewer"/>
+
+    <!-- Moliyaviy yozuvlar (all records): visible to every internal user.
+         No-role users see ONLY this menu (all others are role-gated). Role
+         holders also see it, but the income/expense record rules scope the
+         data (menuitem `groups` cannot express "hide from group"). -->
     <menuitem id="menu_finance_records"
-              name="Finance Records"
-              parent="menu_finance_finance"
+              name="Moliyaviy yozuvlar"
+              parent="menu_finance_root"
               action="action_cc_finance"
-              sequence="10"/>
-    
-    <!-- Configuration Submenu -->
+              sequence="30"
+              groups="base.group_user"/>
+
+    <!-- Configuration: finance administrators only -->
     <menuitem id="menu_finance_configuration"
-              name="Configuration"
+              name="Konfiguratsiya"
               parent="menu_finance_root"
               sequence="100"
-              groups="base.group_system"/>
-    
+              groups="group_finance_admin"/>
+
     <menuitem id="menu_payment_methods"
               name="Payment Methods"
               parent="menu_finance_configuration"
               action="action_payment_method"
               sequence="10"/>
-    
+
     <menuitem id="menu_payment_types"
-              name="Payment Types"
+              name="To'lov turlari"
               parent="menu_finance_configuration"
               action="action_payment_type"
               sequence="20"/>
-    
+
 </odoo>

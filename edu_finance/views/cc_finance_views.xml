@@ -26,8 +26,9 @@
                     <group>
                         <group>
                             <field name="date"/>
-                            <field name="transaction_type" widget="radio"/>
-                            <field name="payment_type_id"/>
+                            <field name="transaction_type" widget="radio" readonly="1"/>
+                            <field name="payment_type_id"
+                                   domain="[('direction', '=', 'kirim' if transaction_type == 'income' else 'chiqim')]"/>
                             <field name="payment_method_id"/>
                         </group>
                         <group>
@@ -176,9 +177,9 @@
         </field>
     </record>
     
-    <!-- Finance Action -->
+    <!-- Finance Action (all records) -->
     <record id="action_cc_finance" model="ir.actions.act_window">
-        <field name="name">Finance</field>
+        <field name="name">Barcha to'lovlar</field>
         <field name="res_model">cc.finance</field>
         <field name="view_mode">list,form,graph,pivot</field>
         <field name="context">{'search_default_filter_this_month': 1}</field>
@@ -191,5 +192,31 @@
             </p>
         </field>
     </record>
-    
+
+    <!-- Income only (Kirimlar) -->
+    <record id="action_cc_finance_income" model="ir.actions.act_window">
+        <field name="name">Kirimlar</field>
+        <field name="res_model">cc.finance</field>
+        <field name="view_mode">list,form,graph,pivot</field>
+        <field name="domain">[('transaction_type', '=', 'income')]</field>
+        <field name="context">{'default_transaction_type': 'income', 'search_default_filter_this_month': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Hozircha kirim yo'q</p>
+            <p>Kelib tushgan to'lovlar (kirimlar) shu yerda ko'rinadi.</p>
+        </field>
+    </record>
+
+    <!-- Expense only (Chiqimlar) -->
+    <record id="action_cc_finance_expense" model="ir.actions.act_window">
+        <field name="name">Chiqimlar</field>
+        <field name="res_model">cc.finance</field>
+        <field name="view_mode">list,form,graph,pivot</field>
+        <field name="domain">[('transaction_type', '=', 'expense')]</field>
+        <field name="context">{'default_transaction_type': 'expense', 'search_default_filter_this_month': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Hozircha chiqim yo'q</p>
+            <p>Chiqimlar (xarajatlar) shu yerda ko'rinadi.</p>
+        </field>
+    </record>
+
 </odoo>

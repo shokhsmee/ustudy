@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============ TRANSACTION LIST (Vizual holati) ============ -->
+    <record id="view_salary_line_list" model="ir.ui.view">
+        <field name="name">edu.teacher.salary.line.list</field>
+        <field name="model">edu.teacher.salary.line</field>
+        <field name="arch" type="xml">
+            <list string="Ustoz oyligi tranzaksiyalari"
+                  decoration-muted="state == 'cancelled'">
+                <field name="name" string="Tr. raqami"/>
+                <field name="date" string="Sana"/>
+                <field name="group_name" string="Guruh"/>
+                <field name="lesson_no" string="Dars raqami"/>
+                <field name="module_name" string="Dars moduli"/>
+                <field name="teacher_id" string="Ustoz"/>
+                <field name="student_count" string="O'quvchilar"/>
+                <field name="transaction_type" string="Traz. turi"/>
+                <field name="amount_total" string="Summa" widget="monetary" sum="Jami"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'confirmed'"
+                       decoration-danger="state == 'cancelled'"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_salary_line_form" model="ir.ui.view">
+        <field name="name">edu.teacher.salary.line.form</field>
+        <field name="model">edu.teacher.salary.line</field>
+        <field name="arch" type="xml">
+            <form string="Ustoz oyligi tranzaksiyasi">
+                <header>
+                    <button name="action_cancel" type="object" string="Bekor qilish"
+                            invisible="state == 'cancelled'"
+                            groups="edu_finance.group_finance_admin"
+                            confirm="Ushbu tranzaksiyani bekor qilasizmi?"/>
+                    <button name="action_set_confirmed" type="object" string="Tasdiqlash"
+                            invisible="state != 'cancelled'"
+                            groups="edu_finance.group_finance_admin"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="confirmed,cancelled"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Dars ma'lumoti">
+                            <field name="date"/>
+                            <field name="teacher_id"/>
+                            <field name="group_name"/>
+                            <field name="lesson_no"/>
+                            <field name="module_name"/>
+                        </group>
+                        <group string="Hisoblash">
+                            <field name="category_name"/>
+                            <field name="tier_name"/>
+                            <field name="percentage"/>
+                            <field name="amount_per_student" widget="monetary"/>
+                            <field name="student_count"/>
+                            <field name="transaction_type"/>
+                            <field name="amount_total" widget="monetary"
+                                   class="oe_subtotal_footer_separator"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="O'quvchilar ro'yxati">
+                            <field name="student_line_ids" readonly="1">
+                                <list>
+                                    <field name="student_name"/>
+                                    <field name="status"/>
+                                    <field name="amount" widget="monetary"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Izoh">
+                            <field name="note"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_salary_line_search" model="ir.ui.view">
+        <field name="name">edu.teacher.salary.line.search</field>
+        <field name="model">edu.teacher.salary.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="teacher_id"/>
+                <field name="group_name"/>
+                <filter name="confirmed" string="Tasdiqlangan"
+                        domain="[('state', '=', 'confirmed')]"/>
+                <filter name="cancelled" string="Bekor qilingan"
+                        domain="[('state', '=', 'cancelled')]"/>
+                <separator/>
+                <filter name="type_kirim" string="Ishlagan (kirim)"
+                        domain="[('transaction_type', '=', 'kirim')]"/>
+                <filter name="type_chiqim" string="To'lovlar (chiqim)"
+                        domain="[('transaction_type', '=', 'chiqim')]"/>
+                <separator/>
+                <filter name="filter_date" string="Sana" date="date"/>
+                <separator/>
+                <filter name="group_teacher" string="Ustoz"
+                        context="{'group_by': 'teacher_id'}"/>
+                <filter name="group_group" string="Guruh"
+                        context="{'group_by': 'group_id'}"/>
+                <filter name="group_date" string="Sana"
+                        context="{'group_by': 'date:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_salary_line" model="ir.actions.act_window">
+        <field name="name">Oylik tranzaksiyalari</field>
+        <field name="res_model">edu.teacher.salary.line</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_confirmed': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Hozircha tranzaksiyalar yo'q</p>
+            <p>Davomat tasdiqlanganda ustoz oyligi tranzaksiyasi avtomatik yaraladi.</p>
+        </field>
+    </record>
+
+    <!-- ============ TEACHER BALANCES ============ -->
+    <record id="view_teacher_salary_employee_list" model="ir.ui.view">
+        <field name="name">hr.employee.teacher.salary.list</field>
+        <field name="model">hr.employee</field>
+        <field name="arch" type="xml">
+            <list string="Ustozlar balansi" create="0">
+                <field name="name"/>
+                <field name="salary_tier_id"/>
+                <field name="teacher_salary_count" string="Tranzaksiyalar"/>
+                <field name="teacher_salary_earned" widget="monetary" string="Ishlagan"/>
+                <field name="teacher_salary_paid" widget="monetary" string="To'langan"/>
+                <field name="teacher_salary_total" widget="monetary" string="Qolgan qarz"
+                       decoration-danger="teacher_salary_total &gt; 0"/>
+                <field name="currency_id" column_invisible="1"/>
+                <button name="action_pay_salary" type="object"
+                        string="Oylik berish" icon="fa-money"
+                        class="btn-link"
+                        invisible="teacher_salary_total &lt;= 0"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_teacher_salary_balance" model="ir.actions.act_window">
+        <field name="name">Ustozlar balansi</field>
+        <field name="res_model">hr.employee</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">['|', ('salary_tier_id', '!=', False), ('teacher_salary_line_ids', '!=', False)]</field>
+        <field name="context">{}</field>
+    </record>
+
+    <record id="action_teacher_salary_balance_list_only" model="ir.actions.act_window.view">
+        <field name="sequence">1</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_teacher_salary_employee_list"/>
+        <field name="act_window_id" ref="action_teacher_salary_balance"/>
+    </record>
+
+</odoo>

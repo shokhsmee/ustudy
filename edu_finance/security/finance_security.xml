@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ================= Category + Privilege (Odoo 19) ================= -->
+        <record id="module_category_finance" model="ir.module.category">
+            <field name="name">To'lovlar (Moliya)</field>
+            <field name="description">Moliya (To'lovlar) ilovasidagi rollar</field>
+            <field name="sequence">50</field>
+        </record>
+
+        <record id="privilege_finance" model="res.groups.privilege">
+            <field name="name">To'lovlar (Moliya) roli</field>
+            <field name="category_id" ref="module_category_finance"/>
+            <field name="sequence">50</field>
+        </record>
+
+        <!-- ================= Roles ================= -->
+
+        <!-- Viewer: read-only, sees Kirimlar + Chiqimlar but cannot edit -->
+        <record id="group_finance_viewer" model="res.groups">
+            <field name="name">Ko'ruvchi (faqat ko'rish)</field>
+            <field name="privilege_id" ref="privilege_finance"/>
+            <field name="comment">Faqat ko'rish: tahrirlash, o'chirish, eksport yoki amallar yo'q.</field>
+        </record>
+
+        <!-- Income manager: works with Kirimlar only -->
+        <record id="group_finance_income_manager" model="res.groups">
+            <field name="name">Kirimlar menejeri</field>
+            <field name="privilege_id" ref="privilege_finance"/>
+            <field name="comment">Faqat Kirimlar bilan ishlaydi; Chiqimlarni ko'rmaydi.</field>
+        </record>
+
+        <!-- Expense manager: works with Chiqimlar only -->
+        <record id="group_finance_expense_manager" model="res.groups">
+            <field name="name">Chiqimlar menejeri</field>
+            <field name="privilege_id" ref="privilege_finance"/>
+            <field name="comment">Faqat Chiqimlar bilan ishlaydi; Kirimlarni ko'rmaydi.</field>
+        </record>
+
+        <!-- Chief accountant: both Kirimlar + Chiqimlar, no configuration -->
+        <record id="group_finance_chief" model="res.groups">
+            <field name="name">Bosh hisobchi</field>
+            <field name="privilege_id" ref="privilege_finance"/>
+            <field name="implied_ids" eval="[(4, ref('group_finance_income_manager')), (4, ref('group_finance_expense_manager'))]"/>
+            <field name="comment">Kirimlar va Chiqimlar bilan ishlaydi; Konfiguratsiyani ko'rmaydi.</field>
+        </record>
+
+        <!-- Administrator: everything incl. configuration -->
+        <record id="group_finance_admin" model="res.groups">
+            <field name="name">Administrator</field>
+            <field name="privilege_id" ref="privilege_finance"/>
+            <field name="implied_ids" eval="[(4, ref('group_finance_chief'))]"/>
+            <field name="comment">To'liq huquq: Konfiguratsiya, tahrirlash va barcha amallar.</field>
+        </record>
+
+        <!-- Real system admins are also finance admins automatically -->
+        <record id="base.group_system" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('group_finance_admin'))]"/>
+        </record>
+
+    </data>
+</odoo>

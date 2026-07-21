@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_employee_form_teacher_salary" model="ir.ui.view">
+        <field name="name">hr.employee.form.teacher.salary</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Ustoz oyligi" name="teacher_salary">
+                    <group>
+                        <group string="Toifa">
+                            <field name="salary_tier_id" options="{'no_create': True}"/>
+                        </group>
+                        <group string="Balans">
+                            <field name="teacher_salary_count"/>
+                            <field name="teacher_salary_earned" widget="monetary"/>
+                            <field name="teacher_salary_paid" widget="monetary"/>
+                            <field name="teacher_salary_total" widget="monetary"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <button name="action_view_teacher_salary" type="object"
+                            string="Oylik tranzaksiyalarini ko'rish" class="btn-link"
+                            icon="fa-money"/>
+                    <button name="action_pay_salary" type="object"
+                            string="Oylik berish" class="btn-primary"
+                            icon="fa-money"
+                            invisible="teacher_salary_total &lt;= 0"/>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

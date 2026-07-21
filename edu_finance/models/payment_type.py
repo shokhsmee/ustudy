@@ -9,6 +9,12 @@ class CCPaymentType(models.Model):
 
     name = fields.Char(string='Type Name', required=True, translate=True)
     code = fields.Char(string='Code')
+    direction = fields.Selection([
+        ('kirim', 'Kirim'),
+        ('chiqim', 'Chiqim'),
+    ], string="Yo'nalish", required=True, default='kirim',
+        help="Bu to'lov turi Kirim (income) yoki Chiqim (expense) ekanligini bildiradi. "
+             "Kirimlar oynasida faqat 'Kirim', Chiqimlar oynasida faqat 'Chiqim' turlari ko'rinadi.")
     type_category = fields.Selection([
         ('student', 'Student'),
         ('teacher', 'Teacher'),

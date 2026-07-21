@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Default categories & tiers from the reference scheme.
+         noupdate="1": edits made in the UI are preserved across upgrades. -->
+    <data noupdate="1">
+
+        <record id="category_b" model="edu.teacher.salary.category">
+            <field name="name">B(toifa)</field>
+            <field name="code">B</field>
+            <field name="base_amount">2000000</field>
+            <field name="sequence">10</field>
+        </record>
+
+        <record id="category_a" model="edu.teacher.salary.category">
+            <field name="name">A(toifa)</field>
+            <field name="code">A</field>
+            <field name="base_amount">1000000</field>
+            <field name="sequence">20</field>
+        </record>
+
+        <!-- B tiers -->
+        <record id="tier_b3" model="edu.teacher.salary.tier">
+            <field name="category_id" ref="category_b"/>
+            <field name="name">B3</field>
+            <field name="percentage">25</field>
+            <field name="amount_per_student">41500</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tier_b2" model="edu.teacher.salary.tier">
+            <field name="category_id" ref="category_b"/>
+            <field name="name">B2</field>
+            <field name="percentage">20</field>
+            <field name="amount_per_student">33400</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tier_b1" model="edu.teacher.salary.tier">
+            <field name="category_id" ref="category_b"/>
+            <field name="name">B1</field>
+            <field name="percentage">18</field>
+            <field name="amount_per_student">30000</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <!-- A tiers -->
+        <record id="tier_a3" model="edu.teacher.salary.tier">
+            <field name="category_id" ref="category_a"/>
+            <field name="name">A3</field>
+            <field name="percentage">20</field>
+            <field name="amount_per_student">21900</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="tier_a2" model="edu.teacher.salary.tier">
+            <field name="category_id" ref="category_a"/>
+            <field name="name">A2</field>
+            <field name="percentage">18</field>
+            <field name="amount_per_student">15000</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="tier_a1" model="edu.teacher.salary.tier">
+            <field name="category_id" ref="category_a"/>
+            <field name="name">A1</field>
+            <field name="percentage">15</field>
+            <field name="amount_per_student">12500</field>
+            <field name="sequence">30</field>
+        </record>
+
+    </data>
+</odoo>

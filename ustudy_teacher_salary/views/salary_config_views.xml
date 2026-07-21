@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============ CATEGORY (Toifa) ============ -->
+    <record id="view_salary_category_list" model="ir.ui.view">
+        <field name="name">edu.teacher.salary.category.list</field>
+        <field name="model">edu.teacher.salary.category</field>
+        <field name="arch" type="xml">
+            <list string="Toifalar" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="base_amount" widget="monetary"/>
+                <field name="tier_count" string="Darajalar"/>
+                <field name="active" widget="boolean_toggle"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_salary_category_form" model="ir.ui.view">
+        <field name="name">edu.teacher.salary.category.form</field>
+        <field name="model">edu.teacher.salary.category</field>
+        <field name="arch" type="xml">
+            <form string="Toifa">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="base_amount" widget="monetary"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Darajalar">
+                            <field name="tier_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="percentage"/>
+                                    <field name="amount_per_student" widget="monetary"/>
+                                    <field name="active" widget="boolean_toggle"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_salary_category" model="ir.actions.act_window">
+        <field name="name">Toifalar</field>
+        <field name="res_model">edu.teacher.salary.category</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Ustoz toifalari (A / B)</p>
+            <p>Har bir toifaning asosiy summasini bu yerdan tahrirlang.</p>
+        </field>
+    </record>
+
+    <!-- ============ TIER (Daraja) — main editable screen ============ -->
+    <record id="view_salary_tier_list" model="ir.ui.view">
+        <field name="name">edu.teacher.salary.tier.list</field>
+        <field name="model">edu.teacher.salary.tier</field>
+        <field name="arch" type="xml">
+            <list string="Darajalar" editable="bottom" default_order="category_id, sequence">
+                <field name="sequence" widget="handle"/>
+                <field name="category_id"/>
+                <field name="name"/>
+                <field name="percentage"/>
+                <field name="amount_per_student" widget="monetary"/>
+                <field name="active" widget="boolean_toggle"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_salary_tier_form" model="ir.ui.view">
+        <field name="name">edu.teacher.salary.tier.form</field>
+        <field name="model">edu.teacher.salary.tier</field>
+        <field name="arch" type="xml">
+            <form string="Daraja">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="category_id"/>
+                            <field name="name"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="percentage"/>
+                            <field name="amount_per_student" widget="monetary"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_salary_tier" model="ir.actions.act_window">
+        <field name="name">Toifa darajalari</field>
+        <field name="res_model">edu.teacher.salary.tier</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_category': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Toifa darajalari</p>
+            <p>Foizlar va 1 o'quvchi uchun summalarni bu yerdan tahrirlang.</p>
+        </field>
+    </record>
+
+    <record id="view_salary_tier_search" model="ir.ui.view">
+        <field name="name">edu.teacher.salary.tier.search</field>
+        <field name="model">edu.teacher.salary.tier</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="category_id"/>
+                <separator/>
+                <filter name="group_category" string="Toifa"
+                        context="{'group_by': 'category_id'}"/>
+            </search>
+        </field>
+    </record>
+
+</odoo>

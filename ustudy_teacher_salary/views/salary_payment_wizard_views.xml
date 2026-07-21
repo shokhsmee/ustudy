@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_salary_payment_wizard_form" model="ir.ui.view">
+        <field name="name">edu.teacher.salary.payment.wizard.form</field>
+        <field name="model">edu.teacher.salary.payment.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Oylik berish">
+                <group>
+                    <field name="teacher_id" options="{'no_create': True}"/>
+                    <field name="amount_due" widget="monetary" readonly="1"/>
+                    <field name="amount" widget="monetary"/>
+                    <field name="date"/>
+                    <field name="payment_method_id" options="{'no_create': True}"/>
+                    <field name="note" placeholder="Izoh (ixtiyoriy)"/>
+                    <field name="currency_id" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_pay" type="object" string="To'lash"
+                            class="btn-primary"
+                            confirm="Ustozga oylik to'lovini tasdiqlaysizmi? Bu Chiqim yozuvini yaratadi."/>
+                    <button string="Bekor qilish" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

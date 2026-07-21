@@ -14,7 +14,7 @@ STATE_LABELS = {
     "active": "Faol",
     "completed": "Tugatgan",
     "frozen": "Muzlatilgan",
-    "cancelled": "Chetlatilgan",
+    "cancelled": "Guruhdan chetlatilgan",
 }
 
 
@@ -98,7 +98,9 @@ class DavomatMatrix(models.AbstractModel):
                 modules.append(by_seq[seq])
             by_seq[seq]["lessons"].append(info)
 
-        # students: enrollment order, cancelled ones at their place (grayed).
+        # students: enrollment order. Only active enrollments appear on the
+        # attendance sheet — students removed from the group (cancelled /
+        # Guruhdan chetlatilgan) are excluded entirely.
         # Dedupe by student (old data may hold duplicate enrollment lines for
         # one student — same guard as the lesson-report SQL view's DISTINCT ON):
         # keep the earliest-enrolled line.
@@ -108,12 +110,12 @@ class DavomatMatrix(models.AbstractModel):
             key=lambda l: (l.enrollment_date or fields.Date.from_string("1900-01-01"), l.id)
         )
         for line in lines:
+            if line.state == "cancelled":
+                continue
             if line.student_id.id in seen_students:
                 continue
             seen_students.add(line.student_id.id)
-            removed_date = (
-                line.write_date.date() if line.state == "cancelled" and line.write_date else None
-            )
+            removed_date = None
             cells = {}
             summary = {m["seq"]: {"present": 0, "absent": 0} for m in modules}
             for tt in lessons:

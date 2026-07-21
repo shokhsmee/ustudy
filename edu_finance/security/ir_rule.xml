@@ -1,19 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
+    <!-- Global multi-company filter: no groups => global, AND-ed for every
+         user (incl. no-role). -->
     <record id="cc_finance_rule_by_company" model="ir.rule">
-        <field name="name">Finance company filter</field>
+        <field name="name">Finance: multi-company</field>
         <field name="model_id" ref="model_cc_finance"/>
-        <field name="domain_force">[('company_id', 'in', user.company_ids.ids)]</field>
-        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
 
+    <!-- Kirimlar menejeri: sees/edits ONLY income records.
+         Attached to the manager group only, so no-role users (base.group_user
+         with no finance role) keep seeing everything in Moliyaviy yozuvlar. -->
+    <record id="cc_finance_rule_income" model="ir.rule">
+        <field name="name">Finance: Kirimlar menejeri (faqat kirim)</field>
+        <field name="model_id" ref="model_cc_finance"/>
+        <field name="domain_force">[('transaction_type', '=', 'income')]</field>
+        <field name="groups" eval="[(4, ref('group_finance_income_manager'))]"/>
+    </record>
+
+    <!-- Chiqimlar menejeri: sees/edits ONLY expense records -->
+    <record id="cc_finance_rule_expense" model="ir.rule">
+        <field name="name">Finance: Chiqimlar menejeri (faqat chiqim)</field>
+        <field name="model_id" ref="model_cc_finance"/>
+        <field name="domain_force">[('transaction_type', '=', 'expense')]</field>
+        <field name="groups" eval="[(4, ref('group_finance_expense_manager'))]"/>
+    </record>
+
+    <!-- Portal: own records -->
     <record id="cc_finance_portal_rule" model="ir.rule">
         <field name="name">Portal Finance Own Records</field>
-        <field name="model_id" ref="your_module.model_cc_finance"/>
-        <field name="domain_force">[('partner_id','=',user.partner_id.id)]</field>
+        <field name="model_id" ref="model_cc_finance"/>
+        <field name="domain_force">[('partner_id', '=', user.partner_id.id)]</field>
         <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
         <field name="perm_read" eval="1"/>
         <field name="perm_write" eval="0"/>
         <field name="perm_create" eval="0"/>
         <field name="perm_unlink" eval="0"/>
     </record>
+
 </odoo>

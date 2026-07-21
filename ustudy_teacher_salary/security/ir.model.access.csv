@@ -1,0 +1,11 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_salary_category_user,salary.category.user,model_edu_teacher_salary_category,base.group_user,1,0,0,0
+access_salary_category_admin,salary.category.admin,model_edu_teacher_salary_category,edu_finance.group_finance_admin,1,1,1,1
+access_salary_tier_user,salary.tier.user,model_edu_teacher_salary_tier,base.group_user,1,0,0,0
+access_salary_tier_admin,salary.tier.admin,model_edu_teacher_salary_tier,edu_finance.group_finance_admin,1,1,1,1
+access_salary_line_expense,salary.line.expense,model_edu_teacher_salary_line,edu_finance.group_finance_expense_manager,1,0,0,0
+access_salary_line_admin,salary.line.admin,model_edu_teacher_salary_line,edu_finance.group_finance_admin,1,1,1,1
+access_salary_line_student_expense,salary.line.student.expense,model_edu_teacher_salary_line_student,edu_finance.group_finance_expense_manager,1,0,0,0
+access_salary_line_student_admin,salary.line.student.admin,model_edu_teacher_salary_line_student,edu_finance.group_finance_admin,1,1,1,1
+access_salary_payment_wizard_expense,salary.payment.wizard.expense,model_edu_teacher_salary_payment_wizard,edu_finance.group_finance_expense_manager,1,1,1,1
+access_salary_payment_wizard_admin,salary.payment.wizard.admin,model_edu_teacher_salary_payment_wizard,edu_finance.group_finance_admin,1,1,1,1

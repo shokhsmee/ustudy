@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Education Finance Management',
-    'version': '19.0.1.1.0',
+    'version': '19.0.1.3.0',
     'category': 'Accounting',
     'summary': 'Manage income and expenses for education center',
     'author' : 'Shohjahon Obruyev',
@@ -15,8 +15,9 @@
     """,
     'depends': ['base', 'hr', 'contacts',"ustudy_group"],
     'data': [
+        'security/finance_security.xml',
         'security/ir.model.access.csv',
-        # 'security/ir_rule.xml',
+        'security/ir_rule.xml',
         'data/sequence_data.xml',
         'data/payment_method_data.xml',
         'data/payment_type_data.xml',
