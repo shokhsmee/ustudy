@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- List: sababli green, sababsiz red, unset uncolored; grouped by day → group -->
+    <record id="view_sifat_nazorat_list" model="ir.ui.view">
+        <field name="name">edu.sifat.nazorat.list</field>
+        <field name="model">edu.sifat.nazorat</field>
+        <field name="arch" type="xml">
+            <list string="Sifat nazorati" js_class="sifat_nazorat_dashboard_list"
+                  decoration-success="reason == 'sababli'"
+                  decoration-danger="reason == 'sababsiz'">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="group_id"/>
+                <field name="student_id"/>
+                <field name="student_phone" optional="show"/>
+                <field name="lesson_no" optional="show"/>
+                <field name="teacher_id" optional="show"/>
+                <field name="reason" widget="badge"
+                       decoration-success="reason == 'sababli'"
+                       decoration-danger="reason == 'sababsiz'"/>
+                <field name="description" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_sifat_nazorat_form" model="ir.ui.view">
+        <field name="name">edu.sifat.nazorat.form</field>
+        <field name="model">edu.sifat.nazorat</field>
+        <field name="arch" type="xml">
+            <form string="Sifat nazorati yozuvi">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Davomat ma'lumoti">
+                            <field name="date"/>
+                            <field name="group_id"/>
+                            <field name="student_id"/>
+                            <field name="student_phone" widget="phone"/>
+                            <field name="teacher_id"/>
+                            <field name="lesson_no"/>
+                        </group>
+                        <group string="Tasnif">
+                            <field name="reason" widget="radio" options="{'horizontal': true}"/>
+                            <field name="timetable_id" readonly="1"/>
+                            <field name="attendance_id" readonly="1"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Tavsif" name="tavsif">
+                            <field name="description" nolabel="1" rows="14"
+                                   class="o_sn_description"
+                                   placeholder="Kelmaganlik sababi haqida izoh yozing..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_sifat_nazorat_search" model="ir.ui.view">
+        <field name="name">edu.sifat.nazorat.search</field>
+        <field name="model">edu.sifat.nazorat</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="student_id"/>
+                <field name="group_id"/>
+                <field name="teacher_id"/>
+                <filter name="filter_sababli" string="Sababli"
+                        domain="[('reason', '=', 'sababli')]"/>
+                <filter name="filter_sababsiz" string="Sababsiz"
+                        domain="[('reason', '=', 'sababsiz')]"/>
+                <filter name="filter_unset" string="Tasniflanmagan"
+                        domain="[('reason', '=', False)]"/>
+                <separator/>
+                <filter name="filter_date" string="Sana" date="date"/>
+                <separator/>
+                <filter name="groupby_day" string="Kun bo'yicha"
+                        context="{'group_by': 'date:day'}"/>
+                <filter name="groupby_group" string="Guruh bo'yicha"
+                        context="{'group_by': 'group_id'}"/>
+                <filter name="groupby_reason" string="Sabab bo'yicha"
+                        context="{'group_by': 'reason'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_sifat_nazorat" model="ir.actions.act_window">
+        <field name="name">Davomat nazorati</field>
+        <field name="res_model">edu.sifat.nazorat</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_groupby_day': 1, 'search_default_groupby_group': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Hozircha yozuvlar yo'q</p>
+            <p>Davomatda "Yo'q" (kelmadi) belgilangan har bir o'quvchi uchun
+               yozuv avtomatik yaratiladi. Sababli/Sababsiz tasnifini shu yerda
+               yoki davomat oynasidagi tugma orqali belgilang.</p>
+        </field>
+    </record>
+
+    <!-- Root app -->
+    <menuitem id="menu_sifat_nazorat_root" name="Sifat Nazorat"
+              web_icon="ustudy_sifat_nazorat,static/description/icon.png"
+              groups="ustudy_sifat_nazorat.group_sn_admin"
+              sequence="62"/>
+    <menuitem id="menu_sifat_nazorat_records" name="Davomat nazorati"
+              parent="menu_sifat_nazorat_root" action="action_sifat_nazorat"
+              sequence="10"/>
+
+</odoo>

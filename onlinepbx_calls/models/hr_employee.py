@@ -7,6 +7,12 @@ class HrEmployee(models.Model):
         string="PBX Extension",
         help="Internal PBX extension (e.g. 101, 102) used by the online PBX."
     )
+
+    amocrm_user_id = fields.Integer(
+        string="amoCRM User ID",
+        help="amoCRM foydalanuvchi IDsi — amoCRM'dan qo'ng'iroqlar sinxronlanganda "
+             "mas'ul operator shu ID orqali topiladi.",
+    )
     
     call_ids = fields.One2many(
         'onlinepbx.call',

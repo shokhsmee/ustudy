@@ -1,3 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_amocrm_employee_system,amocrm.employee.system,model_amocrm_employee,base.group_system,1,1,1,1
-access_amocrm_employee_user,amocrm.employee.user,model_amocrm_employee,base.group_user,1,0,0,0
+access_amocrm_employee_admin,amocrm.employee.admin,model_amocrm_employee,group_amocrm_admin,1,1,1,1
+access_amocrm_employee_user,amocrm.employee.user,model_amocrm_employee,group_amocrm_user,1,0,0,0

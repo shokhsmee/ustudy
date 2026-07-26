@@ -33,6 +33,43 @@ export class DavomatMatrix extends Component {
         return modules[this.state.moduleIndex] || null;
     }
 
+    get today() {
+        return (this.state.data && this.state.data.today) || { has_lesson: false };
+    }
+
+    async startLesson() {
+        // Opens the start-photo camera wizard; on close the board reloads and
+        // shows the in-progress selectors.
+        const action = await this.orm.call(
+            "edu.davomat.matrix", "matrix_start_lesson", [this.groupId]
+        );
+        this.action.doAction(action, { onClose: () => this.load() });
+    }
+
+    async finishLesson() {
+        // Opens homework wizard → end-photo camera wizard → confirm (server
+        // chained). Reload once the whole chain closes.
+        const action = await this.orm.call(
+            "edu.davomat.matrix", "matrix_finish_lesson", [this.groupId]
+        );
+        this.action.doAction(action, { onClose: () => this.load() });
+    }
+
+    async setStatus(studentId, ev) {
+        const status = ev.target.value;
+        const attId = this.today.attendance_id;
+        if (!attId) {
+            return;
+        }
+        await this.orm.call(
+            "edu.davomat.matrix", "matrix_set_status", [attId, studentId, status]
+        );
+        const student = this.state.data.students.find((s) => s.student_id === studentId);
+        if (student) {
+            student.today_status = status;
+        }
+    }
+
     shiftModule(direction) {
         const count = this.state.data ? this.state.data.modules.length : 0;
         const next = this.state.moduleIndex + direction;

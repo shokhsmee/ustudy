@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Timetable list: optional (hidden by default) transaction-status columns,
+         only for finance (expense) roles. -->
+    <record id="view_edu_timetable_list_salary" model="ir.ui.view">
+        <field name="name">edu.timetable.list.salary</field>
+        <field name="model">edu.timetable</field>
+        <field name="inherit_id" ref="ustudy_group.view_edu_timetable_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='state']" position="after">
+                <field name="salary_state" string="Oylik holati" optional="hide"
+                       widget="badge"
+                       decoration-success="salary_state == 'confirmed'"
+                       decoration-danger="salary_state == 'cancelled'"
+                       groups="edu_finance.group_finance_expense_manager"/>
+                <field name="salary_amount" string="Oylik summasi" optional="hide"
+                       groups="edu_finance.group_finance_expense_manager"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Timetable attendance section: show the linked salary transaction. -->
+    <record id="view_edu_timetable_form_salary" model="ir.ui.view">
+        <field name="name">edu.timetable.form.salary</field>
+        <field name="model">edu.timetable</field>
+        <field name="inherit_id" ref="ustudy_group.view_edu_timetable_form_attendance"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='attendance_lines']/field[@name='confirmed_attendance_line_ids']" position="before">
+                <group string="Ustoz oyligi (moliyaviy o'tkazma)"
+                       groups="edu_finance.group_finance_expense_manager">
+                    <field name="salary_line_id" readonly="1"/>
+                    <field name="salary_state" readonly="1"/>
+                    <!-- <field name="salary_amount" readonly="1"/>
+                    <button name="action_open_salary_line" type="object"
+                            string="Tranzaksiyani ochish" class="btn-link"
+                            icon="fa-money" invisible="not salary_line_id"/> -->
+                </group>
+            </xpath>
+            <xpath expr="//page[@name='attendance_lines']/field[@name='confirmed_attendance_line_ids']/list" position="inside">
+                <field name="has_removed" string="Oylikdan chiqarilgan"
+                       groups="edu_finance.group_finance_expense_manager"/>
+                <button name="action_salary_remove" type="object"
+                        string="Oylikdan olib tashlash" icon="fa-times"
+                        class="text-danger" invisible="has_removed"
+                        groups="edu_finance.group_finance_expense_manager"/>
+                <button name="action_salary_activate" type="object"
+                        string="Faollashtirish" icon="fa-check"
+                        class="text-success" invisible="not has_removed"
+                        groups="edu_finance.group_finance_expense_manager"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

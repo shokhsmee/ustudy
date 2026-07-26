@@ -17,9 +17,12 @@
                 <field name="payment_type_category" invisible="1"/>
             </xpath>
 
-            <!-- Show partner only for student payment types -->
+            <!-- Show partner only for student payment types; the picker lists
+                 students only (the field is hidden for every non-student
+                 category anyway, so no other flow needs plain contacts) -->
             <xpath expr="//field[@name='partner_id']" position="attributes">
                 <attribute name="invisible">payment_type_category not in ['student', False]</attribute>
+                <attribute name="domain">[('is_student', '=', True)]</attribute>
             </xpath>
 
             <!-- Show employee only for teacher / employee payment types -->

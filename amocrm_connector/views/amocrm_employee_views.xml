@@ -19,6 +19,8 @@
                 <field name="user_id" string="Odoo foydalanuvchisi"
                        options="{'no_create': True}"/>
                 <field name="last_sync" readonly="1" optional="hide"/>
+                <button name="action_open_kpi_dashboard" type="object"
+                        icon="fa-line-chart" title="KPI Dashboard"/>
             </list>
         </field>
     </record>
@@ -28,6 +30,11 @@
         <field name="model">amocrm.employee</field>
         <field name="arch" type="xml">
             <form string="amoCRM xodimi">
+                <header>
+                    <button name="action_open_kpi_dashboard" type="object"
+                            string="KPI Dashboard" class="btn-primary"
+                            icon="fa-line-chart"/>
+                </header>
                 <sheet>
                     <group>
                         <group string="amoCRM">

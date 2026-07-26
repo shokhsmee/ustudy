@@ -1,0 +1,254 @@
+.o_amocrm_kpi {
+    height: 100%;
+    overflow: auto;
+    background: #f4f6f9;
+    padding: 16px;
+
+    .o_akpi_toolbar {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 14px;
+
+        h3 {
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .o_akpi_title_manager {
+            color: #714b67;
+        }
+
+        .o_akpi_subtitle {
+            font-size: 12px;
+            color: #8a8f98;
+            margin-top: 4px;
+        }
+
+        .o_akpi_filters {
+            display: flex;
+            align-items: center;
+
+            input[type="date"] {
+                width: auto;
+            }
+        }
+    }
+
+    .o_akpi_loading {
+        padding: 40px;
+        text-align: center;
+        color: #8a8f98;
+        font-size: 15px;
+    }
+
+    // ---- totals strip -------------------------------------------------
+    .o_akpi_totals {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .o_akpi_total_chip {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        padding: 10px 18px;
+        min-width: 130px;
+        text-align: center;
+
+        .o_akpi_chip_value {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .o_akpi_chip_label {
+            font-size: 12px;
+            color: #8a8f98;
+        }
+
+        &.o_akpi_chip_green .o_akpi_chip_value {
+            color: #1e8f4e;
+        }
+
+        &.o_akpi_chip_amber .o_akpi_chip_value {
+            color: #b8860b;
+        }
+    }
+
+    // ---- manager cards --------------------------------------------------
+    .o_akpi_grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+        gap: 16px;
+    }
+
+    .o_akpi_card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+        padding: 16px;
+    }
+
+    .o_akpi_card_head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .o_akpi_avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background: #714b67;
+        color: #fff;
+        font-size: 19px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        text-transform: uppercase;
+    }
+
+    .o_akpi_card_name {
+        flex: 1;
+        min-width: 0;
+
+        .o_akpi_manager {
+            font-size: 16px;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .o_akpi_bonus {
+            font-size: 12px;
+            color: #6c757d;
+
+            b {
+                color: #b8860b;
+            }
+        }
+    }
+
+    .o_akpi_badge {
+        border-radius: 10px;
+        padding: 6px 14px;
+        text-align: center;
+        font-size: 18px;
+        font-weight: 800;
+        color: #fff;
+        flex-shrink: 0;
+
+        .o_akpi_badge_label {
+            font-size: 10px;
+            font-weight: 600;
+            opacity: 0.9;
+        }
+
+        &.o_akpi_badge_green { background: #1e8f4e; }
+        &.o_akpi_badge_amber { background: #d99e18; }
+        &.o_akpi_badge_red { background: #b02a37; }
+    }
+
+    .o_akpi_stats {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+
+        .o_akpi_stat {
+            flex: 1;
+            background: #f6f7fa;
+            border-radius: 8px;
+            padding: 8px 4px;
+            text-align: center;
+
+            .o_akpi_stat_value {
+                font-size: 15px;
+                font-weight: 700;
+            }
+
+            .o_akpi_stat_label {
+                font-size: 11px;
+                color: #8a8f98;
+            }
+        }
+    }
+
+    .o_akpi_green {
+        color: #1e8f4e;
+    }
+
+    // ---- funnel bars ---------------------------------------------------
+    .o_akpi_stage {
+        margin-bottom: 8px;
+
+        .o_akpi_stage_top {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 2px;
+
+            .o_akpi_stage_label {
+                color: #4a4f57;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .o_akpi_stage_count {
+                font-weight: 700;
+                white-space: nowrap;
+                margin-left: 8px;
+            }
+        }
+
+        .o_akpi_bar_track {
+            background: #eceff3;
+            border-radius: 6px;
+            height: 14px;
+            overflow: hidden;
+        }
+
+        .o_akpi_bar {
+            height: 100%;
+            border-radius: 6px;
+            min-width: 6px;
+            transition: width 0.4s ease;
+
+            &.o_akpi_bar_won { background: #1e8f4e; }
+            &.o_akpi_bar_lost { background: #c9ccd1; }
+        }
+    }
+
+    // ---- courses ---------------------------------------------------------
+    .o_akpi_courses {
+        margin-top: 12px;
+        border-top: 1px dashed #e2e5ea;
+        padding-top: 10px;
+
+        .o_akpi_courses_title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #6c757d;
+            margin-bottom: 6px;
+        }
+
+        .o_akpi_course_chip {
+            display: inline-block;
+            background: #eef7f1;
+            color: #14683a;
+            border-radius: 20px;
+            padding: 3px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 0 6px 6px 0;
+        }
+    }
+}

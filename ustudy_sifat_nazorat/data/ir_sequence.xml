@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="seq_sifat_nazorat" model="ir.sequence">
+        <field name="name">Sifat Nazorat yozuvi</field>
+        <field name="code">edu.sifat.nazorat</field>
+        <field name="prefix">SN/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

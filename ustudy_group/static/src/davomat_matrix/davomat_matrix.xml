@@ -43,6 +43,20 @@
                 <button class="btn btn-sm btn-secondary"
                         t-att-disabled="!state.data or state.moduleIndex >= state.data.modules.length - 1"
                         t-on-click="() => this.shiftModule(1)">Modul ›</button>
+
+                <!-- Today's lesson flow: Darsni boshlash → (selectors) → yakunlash -->
+                <t t-if="today.has_lesson">
+                    <span class="o_dm_today_sep"/>
+                    <span class="o_dm_today_label">
+                        Bugungi dars: <b><t t-esc="today.lesson_no"/> - Dars</b>
+                        (<t t-esc="today.date"/>)
+                    </span>
+                    <button t-if="today.can_start" class="btn btn-sm btn-success o_dm_today_btn"
+                            t-on-click="startLesson">▶ Darsni boshlash</button>
+                    <button t-if="today.in_progress" class="btn btn-sm btn-warning o_dm_today_btn"
+                            t-on-click="finishLesson">■ Darsni yakunlash</button>
+                    <span t-if="today.done" class="o_dm_today_done">✓ Bugungi dars yakunlandi</span>
+                </t>
             </div>
 
             <div class="o_dm_board" t-if="currentModule">
@@ -83,7 +97,11 @@
                             <th class="o_dm_col_label">Statusi</th>
                             <th class="o_dm_col_label">Guruhdan chetlatilgan sanasi</th>
                             <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
-                                <th class="o_dm_dars" t-esc="lesson.pos_label"/>
+                                <th t-attf-class="o_dm_dars {{ lesson.unconfirmed ? 'o_dm_dars_unconfirmed' : '' }}">
+                                    <t t-esc="lesson.pos_label"/>
+                                    <span t-if="lesson.unconfirmed" class="o_dm_unconfirmed_flag"
+                                          title="Davomat yakunlanmagan (qoralama): dars boshlangan, lekin 'Darsni yakunlash' qilinmagan">⚠</span>
+                                </th>
                             </t>
                         </tr>
 
@@ -116,10 +134,22 @@
                             </td>
                             <td class="o_dm_removed" t-esc="student.removed_date"/>
                             <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
-                                <td t-attf-class="o_dm_cell o_dm_cell_{{ student.cells[lesson.id] || 'empty' }}">
-                                    <t t-if="student.cells[lesson.id] === 'present'">Bor</t>
-                                    <t t-elif="student.cells[lesson.id] === 'absent'">Yo'q</t>
-                                </td>
+                                <t t-if="today.in_progress and lesson.id === today.lesson_id and student.state === 'active'">
+                                    <td class="o_dm_cell o_dm_cell_edit">
+                                        <select class="o_dm_att_select"
+                                                t-att-value="student.today_status"
+                                                t-on-change="(ev) => this.setStatus(student.student_id, ev)">
+                                            <option value="present">Bor</option>
+                                            <option value="absent">Yo'q</option>
+                                        </select>
+                                    </td>
+                                </t>
+                                <t t-else="">
+                                    <td t-attf-class="o_dm_cell o_dm_cell_{{ student.cells[lesson.id] || 'empty' }} {{ lesson.unconfirmed ? 'o_dm_cell_unconfirmed' : '' }}">
+                                        <t t-if="student.cells[lesson.id] === 'present'">Bor</t>
+                                        <t t-elif="student.cells[lesson.id] === 'absent'">Yo'q</t>
+                                    </td>
+                                </t>
                             </t>
                             <td class="o_dm_summary" t-esc="student.summary[module.seq]"/>
                         </tr>

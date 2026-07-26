@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 
-from odoo import api, fields, models
+from odoo import api, fields, models, _
 
 
 class AmocrmEmployee(models.Model):
@@ -57,6 +57,16 @@ class AmocrmEmployee(models.Model):
             "group_name": groups[0].get("name") if groups else False,
             "last_sync": fields.Datetime.now(),
             "raw_data": json.dumps(u, ensure_ascii=False, indent=2),
+        }
+
+    def action_open_kpi_dashboard(self):
+        """Open the KPI dashboard scoped to this manager."""
+        self.ensure_one()
+        return {
+            "type": "ir.actions.client",
+            "tag": "amocrm_connector.kpi_dashboard",
+            "name": _("amoCRM KPI: %s") % self.name,
+            "params": {"manager_id": self.amocrm_id, "manager_name": self.name},
         }
 
     def _auto_match_user(self):

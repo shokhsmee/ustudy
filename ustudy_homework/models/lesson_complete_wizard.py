@@ -96,8 +96,30 @@ class EduLessonCompleteWizard(models.TransientModel):
                 "res_model": "edu.homework",
                 "res_id": homework.id,
             })
-        return self._complete_lesson()
+        res = self._complete_lesson()
+        if self.env.context.get("matrix_flow"):
+            return self._matrix_end_camera()
+        return res
 
     def action_complete_only(self):
         """Complete the lesson without adding a task (explicit escape hatch)."""
-        return self._complete_lesson()
+        res = self._complete_lesson()
+        if self.env.context.get("matrix_flow"):
+            return self._matrix_end_camera()
+        return res
+
+    def _matrix_end_camera(self):
+        """Davomat board chaining: after completing the lesson, open the
+        end-photo camera wizard which confirms the attendance (advancing
+        lesson counts + creating the teacher salary snapshot)."""
+        att_id = self.env.context.get("matrix_attendance_id")
+        if not att_id:
+            return {"type": "ir.actions.act_window_close"}
+        return {
+            "name": _("Capture Teacher End Photo"),
+            "type": "ir.actions.act_window",
+            "res_model": "edu.camera.end.wizard",
+            "view_mode": "form",
+            "target": "new",
+            "context": {"default_attendance_id": att_id, "matrix_flow": True},
+        }

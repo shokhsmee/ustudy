@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Attendance form: reason column + wizard button on absent lines -->
+    <record id="view_edu_attendance_form_sn" model="ir.ui.view">
+        <field name="name">edu.attendance.form.sifat.nazorat</field>
+        <field name="model">edu.attendance</field>
+        <field name="inherit_id" ref="ustudy_group.view_edu_attendance_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='attendance_line_ids']/list/field[@name='status']"
+                   position="after">
+                <field name="absence_reason" optional="show"
+                       decoration-success="absence_reason == 'sababli'"
+                       decoration-danger="absence_reason == 'sababsiz'"/>
+                <button name="action_open_reason_wizard" type="object"
+                        icon="fa-medkit" title="Sababli/Sababsiz belgilash"
+                        invisible="status != 'absent'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

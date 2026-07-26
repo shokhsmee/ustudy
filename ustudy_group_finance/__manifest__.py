@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "UStudy Group Finance Connector",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.0.1",
     "category": "Education",
     "summary": "Connect Education Groups with Finance (Student Payments, Smart Buttons, Wizards)",
     "author": "Shohjahon Obruyev",

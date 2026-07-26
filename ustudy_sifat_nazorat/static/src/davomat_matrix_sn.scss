@@ -1,0 +1,72 @@
+// Sifat Nazorat form: big Eslatmalar-style description editor
+.o_form_view .o_sn_description textarea {
+    min-height: 320px;
+}
+
+.o_davomat_matrix {
+    .o_dm_cell {
+        position: relative;
+    }
+
+    // sababli absence: green outline ("green lined") around the cell;
+    // padding keeps the Yo'q text clear of the two right-side badges
+    .o_dm_cell_sababli {
+        box-shadow: inset 0 0 0 3px #1e8f4e;
+        padding-right: 44px;
+    }
+
+    // give the badges room: slightly wider/taller cells
+    .o_dm_cell {
+        min-width: 82px;
+        height: 30px;
+    }
+
+    // medical + icon — white circular badge, vertically centered, sits LEFT
+    // of the sabab button so the two never overlap in the short rows
+    .o_dm_medkit {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        right: 24px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        color: #1e8f4e;
+        font-size: 11px;
+        line-height: 18px;
+        text-align: center;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    // sabab wizard opener — rightmost badge, vertically centered
+    .o_dm_reason_btn {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        right: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 0;
+        padding: 0;
+        background: #fff;
+        color: #b02a37;
+        font-size: 12px;
+        line-height: 18px;
+        text-align: center;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        cursor: pointer;
+
+        &:hover {
+            transform: translateY(-50%) scale(1.2);
+            background: #ffe9a8;
+        }
+    }
+
+    // in today's editable (white) cell give the badge a visible edge
+    .o_dm_reason_btn_edit {
+        border: 1px solid #d0d0d0;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+}

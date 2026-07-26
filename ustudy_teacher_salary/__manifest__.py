@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': "Ustoz Oyligi (Teacher Salary)",
-    'version': '19.0.1.4.0',
+    'version': '19.0.1.7.1',
     'summary': "Ustozlar oyligini davomat asosida hisoblash",
     'description': """
 Ustoz oyligi hisoblanishi
@@ -40,6 +40,7 @@ Moliya ilovasidagi Sozlamalar menyusidan to'liq tahrirlanadi.
         'views/salary_payment_wizard_views.xml',
         'views/res_config_settings_views.xml',
         'views/hr_employee_views.xml',
+        'views/edu_timetable_views.xml',
         'views/menu_views.xml',
     ],
 }

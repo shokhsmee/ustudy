@@ -119,6 +119,16 @@ $dm-side: #fff2cc;
             font-weight: 700;
         }
 
+        // lesson started but davomat never confirmed (draft left hanging)
+        .o_dm_dars_unconfirmed {
+            background: #e6a23c;
+        }
+
+        .o_dm_unconfirmed_flag {
+            margin-left: 4px;
+            cursor: help;
+        }
+
         .o_dm_col_label {
             background: $dm-head;
             color: #fff;
@@ -184,6 +194,16 @@ $dm-side: #fff2cc;
             background: $dm-gray;
         }
 
+        // marks from a draft (unconfirmed) attendance — visible but faded
+        .o_dm_cell_unconfirmed {
+            opacity: 0.6;
+            background-image: repeating-linear-gradient(
+                45deg,
+                rgba(255, 255, 255, 0.25) 0 6px,
+                transparent 6px 12px
+            );
+        }
+
         .o_dm_summary {
             font-size: 11px;
             white-space: normal;
@@ -217,5 +237,48 @@ $dm-side: #fff2cc;
             background: #cfe2ff;
             color: #084298;
         }
+    }
+}
+
+/* Today's-lesson in-board flow (Darsni boshlash / selectors / yakunlash) */
+.o_davomat_matrix {
+    .o_dm_today_sep {
+        display: inline-block;
+        width: 1px;
+        height: 20px;
+        margin: 0 8px;
+        background: #d0d0d0;
+        vertical-align: middle;
+    }
+
+    .o_dm_today_label {
+        font-size: 13px;
+        color: #333;
+        margin-right: 6px;
+    }
+
+    .o_dm_today_btn {
+        font-weight: 600;
+    }
+
+    .o_dm_today_done {
+        font-size: 13px;
+        font-weight: 600;
+        color: #0f5132;
+    }
+
+    .o_dm_cell_edit {
+        padding: 2px !important;
+        background: #fff8e1;
+    }
+
+    .o_dm_att_select {
+        width: 100%;
+        min-width: 62px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 12px;
+        padding: 1px 2px;
+        background: #fff;
     }
 }

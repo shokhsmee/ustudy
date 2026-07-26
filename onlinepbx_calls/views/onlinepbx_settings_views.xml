@@ -33,12 +33,40 @@
                         <field name="cdr_path"/>
                     </group>
 
-                    <group>
+                    <group string="Sync Call History">
+                        <group>
+                            <field name="sync_source" widget="radio"
+                                   options="{'horizontal': true}"/>
+                            <field name="sync_date_from"/>
+                            <field name="sync_date_to"/>
+                        </group>
+                        <group>
+                            <field name="amocrm_subdomain"
+                                   invisible="sync_source != 'amocrm'"
+                                   placeholder="ustudyuz"/>
+                            <field name="amocrm_token"
+                                   invisible="sync_source != 'amocrm'"
+                                   password="True"/>
+                        </group>
+                    </group>
+                    <div class="mb-3">
+                        <button name="action_sync_history"
+                                type="object"
+                                string="Tarixni yuklash (sana oralig'i)"
+                                class="btn-primary"/>
                         <button name="action_sync_last_7_days"
                                 type="object"
-                                string="Sync Last 7 Days Calls"
-                                class="btn-primary"/>
-                    </group>
+                                string="Oxirgi 7 kunni yuklash"
+                                class="btn-secondary ms-2"/>
+                        <div class="text-muted mt-2">
+                            OnlinePBX: API bir so'rovda maksimal 1 haftalik oynaga ruxsat
+                            beradi — uzunroq davr avtomatik 1 haftalik bo'laklarga
+                            bo'linib yuklanadi. amoCRM: qo'ng'iroqlar kontakt/lid
+                            eslatmalaridan (call_in/call_out) o'qiladi, operator
+                            xodimning "amoCRM User ID" maydoni orqali topiladi.
+                            Yozuvlar uuid bo'yicha yangilanadi — takror yuklash xavfsiz.
+                        </div>
+                    </div>
 
                     <div class="o_form_label">
                         Configure this URL in OnlinePBX Webhooks as POST (JSON or form).

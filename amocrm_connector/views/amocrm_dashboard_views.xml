@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_amocrm_kpi_dashboard" model="ir.actions.client">
+        <field name="name">amoCRM KPI Dashboard</field>
+        <field name="tag">amocrm_connector.kpi_dashboard</field>
+    </record>
+
+    <!-- amoCRM root menu -->
+    <menuitem id="menu_amocrm_root" name="amoCRM"
+              web_icon="amocrm_connector,static/description/icon.png"
+              groups="amocrm_connector.group_amocrm_admin"
+              sequence="63"/>
+    <menuitem id="menu_amocrm_kpi_dashboard" name="KPI Dashboard"
+              parent="menu_amocrm_root" action="action_amocrm_kpi_dashboard"
+              sequence="10"/>
+    <menuitem id="menu_amocrm_employees" name="amoCRM xodimlari"
+              parent="menu_amocrm_root" action="action_amocrm_employees"
+              sequence="20"/>
+
+</odoo>

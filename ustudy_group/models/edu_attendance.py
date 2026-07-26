@@ -2,7 +2,7 @@ from odoo import api, fields, models, _
 from odoo.exceptions import AccessError, UserError, ValidationError
 from datetime import timedelta
 
-from .edu_group import teacher_locked, edu_administration
+from .edu_group import teacher_locked
 
 
 class EduAttendance(models.Model):
@@ -118,20 +118,17 @@ class EduAttendance(models.Model):
             record.absent_count = len(record.attendance_line_ids.filtered(lambda l: l.status == "absent"))
 
     def action_confirm(self):
-        """Confirm the attendance - capture end photo first (except admin)"""
+        """Confirm the attendance - always capture the end photo first.
+
+        Everyone, administration included, must go through the end-photo
+        wizard: the end photo is the proof the lesson actually finished, so
+        there is no admin bypass here anymore."""
         self.ensure_one()
 
         if self.state == 'confirmed':
             raise UserError(_("Attendance is already confirmed."))
 
-        is_admin = edu_administration(self.env)
-
-        # Admin can confirm directly without photo
-        if is_admin:
-            self.action_process_confirmation()
-            return True
-
-        # Normal users must capture end photo
+        # Every user must capture the end photo before confirming.
         return {
             "name": _("Capture Teacher End Photo"),
             "type": "ir.actions.act_window",
@@ -487,53 +484,8 @@ class EduAttendanceLine(models.Model):
         return super().write(vals)
 
 
-class CameraStartWizard(models.TransientModel):
-    _name = 'edu.camera.wizard'
-    _description = 'Teacher Camera Capture - Start Lesson'
-    
-    timetable_id = fields.Many2one('edu.timetable', string='Lesson', required=True)
-    teacher_image = fields.Binary("Teacher Photo")
-    
-    def action_capture_and_start(self):
-        """Save start image and create attendance"""
-        self.ensure_one()
-        
-        if not self.teacher_image:
-            raise UserError(_("Please capture teacher photo first."))
-        
-        attendance = self.env["edu.attendance"].create({
-            "timetable_id": self.timetable_id.id,
-            "teacher_start_image": self.teacher_image,
-            "teacher_start_image_filename": f"teacher_start_{fields.Datetime.now()}.jpg",
-        })
-        
-        attendance_lines = []
-        seen_students = set()
-        # One line per distinct student: duplicated enrollment lines (historic
-        # data) would otherwise produce duplicate attendance lines, and confirm
-        # would then advance that student's lesson count twice per lesson.
-        for student_line in self.timetable_id.group_id.student_line_ids.filtered(lambda s: s.state != "cancelled"):
-            if student_line.student_id.id in seen_students:
-                continue
-            seen_students.add(student_line.student_id.id)
-            attendance_lines.append((0, 0, {
-                "student_id": student_line.student_id.id,
-                "status": "present",
-            }))
-        
-        if attendance_lines:
-            attendance.write({"attendance_line_ids": attendance_lines})
-        
-        self.timetable_id.write({"state": "in_progress"})
-        
-        return {
-            "name": _("Mark Attendance"),
-            "type": "ir.actions.act_window",
-            "res_model": "edu.attendance",
-            "res_id": attendance.id,
-            "view_mode": "form",
-            "target": "current",
-        }
+# NOTE: the start-lesson wizard (edu.camera.wizard) lives in camera_wizard.py,
+# which is imported after this module and is the single effective definition.
 
 
 class CameraEndWizard(models.TransientModel):
@@ -544,23 +496,25 @@ class CameraEndWizard(models.TransientModel):
     teacher_image = fields.Binary("Teacher Photo")
     
     def action_capture_and_confirm(self):
-        """Save end image and process confirmation"""
+        """Save end image and process confirmation.
+
+        The end photo is required for everyone (administration included)."""
         self.ensure_one()
 
-        is_admin = edu_administration(self.env)
-
-        # if not admin, photo required
-        if not is_admin and not self.teacher_image:
+        if not self.teacher_image:
             raise UserError(_("Please capture teacher photo first."))
 
-        # save photo only if exists
-        if self.teacher_image:
-            self.attendance_id.write({
-                "teacher_end_image": self.teacher_image,
-                "teacher_end_image_filename": f"teacher_end_{fields.Datetime.now()}.jpg",
-            })
+        self.attendance_id.write({
+            "teacher_end_image": self.teacher_image,
+            "teacher_end_image_filename": f"teacher_end_{fields.Datetime.now()}.jpg",
+        })
 
         self.attendance_id.action_process_confirmation()
+
+        # Matrix flow: close back to the davomat board (it reloads with the
+        # now-confirmed Bor/Yo'q cells).
+        if self.env.context.get("matrix_flow"):
+            return {"type": "ir.actions.act_window_close"}
 
         return {
             "name": _("Attendance Confirmed"),

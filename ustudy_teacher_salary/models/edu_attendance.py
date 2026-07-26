@@ -2,6 +2,51 @@
 from odoo import models, fields, _, SUPERUSER_ID
 
 
+class EduAttendanceLine(models.Model):
+    """Soft-remove flag mirrored with the salary transaction roster.
+
+    Removing a student from the salary transaction keeps them VISIBLE here
+    (flagged) with an Activate button to restore them into the transaction.
+    """
+    _inherit = "edu.attendance.line"
+
+    has_removed = fields.Boolean(
+        string="Oylikdan olib tashlangan", default=False,
+        help="Belgilansa, ushbu o'quvchi ustoz oyligi hisobidan chiqarilgan.",
+    )
+
+    def _salary_student_line(self):
+        self.ensure_one()
+        sline = self.attendance_id.salary_line_id
+        if not sline:
+            return self.env["edu.teacher.salary.line.student"]
+        return sline.student_line_ids.filtered(
+            lambda s: s.student_id == self.student_id
+        )
+
+    def _apply_salary_removed(self, removed):
+        for rec in self:
+            if rec.has_removed != removed:
+                rec.has_removed = removed
+            ss = rec._salary_student_line()
+            if ss:
+                old_total = ss.salary_line_id.amount_total
+                if ss.has_removed != removed:
+                    ss.write({"has_removed": removed})
+                ss.salary_line_id._recompute_amounts()
+                ss.salary_line_id._log_toggle(
+                    rec.student_id.name, removed, old_total
+                )
+
+    def action_salary_remove(self):
+        self._apply_salary_removed(True)
+        return True
+
+    def action_salary_activate(self):
+        self._apply_salary_removed(False)
+        return True
+
+
 class EduAttendance(models.Model):
     _inherit = "edu.attendance"
 

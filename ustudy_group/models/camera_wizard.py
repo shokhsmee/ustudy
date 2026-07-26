@@ -8,6 +8,14 @@ class CameraWizard(models.TransientModel):
 
     timetable_id = fields.Many2one('edu.timetable', string='Lesson', required=True)
     teacher_image = fields.Binary("Teacher Photo")
+    # System admins may start a lesson without a photo — the form surfaces the
+    # "Start" button immediately for them (see camera_wizard.js).
+    is_admin = fields.Boolean(compute="_compute_is_admin")
+
+    def _compute_is_admin(self):
+        is_admin = self.env.user.has_group("base.group_system")
+        for rec in self:
+            rec.is_admin = is_admin
 
     def action_capture_and_start(self):
         """Save image and create attendance"""
@@ -33,9 +41,16 @@ class CameraWizard(models.TransientModel):
         # Create attendance record
         attendance = self.env["edu.attendance"].create(vals)
 
-        # Create attendance lines for students
+        # Create attendance lines for active students. One line per distinct
+        # student: duplicated enrollment lines (historic data) would otherwise
+        # create duplicate lines and confirm would advance that student's
+        # lesson count twice per lesson (this is how the U18 drift happened).
         attendance_lines = []
+        seen_students = set()
         for student_line in self.timetable_id.group_id.student_line_ids.filtered(lambda s: s.state == "active"):
+            if student_line.student_id.id in seen_students:
+                continue
+            seen_students.add(student_line.student_id.id)
             attendance_lines.append((0, 0, {
                 "student_id": student_line.student_id.id,
                 "status": "present",
@@ -46,6 +61,11 @@ class CameraWizard(models.TransientModel):
 
         # Mark lesson as in progress
         self.timetable_id.write({"state": "in_progress"})
+
+        # Matrix flow (davomat board): just close the dialog — the board
+        # reloads and shows the attendance selectors inline in today's column.
+        if self.env.context.get("matrix_flow"):
+            return {"type": "ir.actions.act_window_close"}
 
         # Open attendance form
         return {

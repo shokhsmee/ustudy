@@ -49,6 +49,13 @@
                         <group string="Dars ma'lumoti">
                             <field name="date"/>
                             <field name="teacher_id"/>
+                            <field name="timetable_id"
+                                   invisible="transaction_type == 'chiqim'"
+                                   readonly="not teacher_id"
+                                   domain="[('state', '!=', 'cancelled'), ('teacher_id', '=', teacher_id)]"
+                                   context="{'salary_lesson_picker': 1}"
+                                   options="{'no_create': True}"
+                                   placeholder="Avval ustozni tanlang"/>
                             <field name="group_name"/>
                             <field name="lesson_no"/>
                             <field name="module_name"/>
@@ -67,12 +74,25 @@
                     </group>
                     <notebook>
                         <page string="O'quvchilar ro'yxati">
-                            <field name="student_line_ids" readonly="1">
-                                <list>
-                                    <field name="student_name"/>
+                            <div class="alert alert-info" role="alert"
+                                 invisible="transaction_type != 'kirim'">
+                                O'quvchi qo'shsangiz yoki olib tashlasangiz, moliyaviy
+                                o'tkazma summasi avtomatik qayta hisoblanadi va o'zgarish
+                                pastdagi jurnalga (chatter) yoziladi.
+                            </div>
+                            <field name="student_line_ids"
+                                   readonly="transaction_type != 'kirim'"
+                                   domain="[('has_removed', '=', False)]">
+                                <list editable="bottom">
+                                    <field name="has_removed" column_invisible="1"/>
+                                    <field name="student_id" options="{'no_create': True}"/>
+                                    <field name="student_name" optional="hide"/>
                                     <field name="status"/>
                                     <field name="amount" widget="monetary"/>
                                     <field name="currency_id" column_invisible="1"/>
+                                    <button name="action_remove" type="object"
+                                            string="Olib tashlash" icon="fa-times"
+                                            class="text-danger" invisible="has_removed"/>
                                 </list>
                             </field>
                         </page>
@@ -94,6 +114,7 @@
                 <field name="name"/>
                 <field name="teacher_id"/>
                 <field name="group_name"/>
+                <field name="timetable_id"/>
                 <filter name="confirmed" string="Tasdiqlangan"
                         domain="[('state', '=', 'confirmed')]"/>
                 <filter name="cancelled" string="Bekor qilingan"
@@ -123,7 +144,9 @@
         <field name="context">{'search_default_confirmed': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Hozircha tranzaksiyalar yo'q</p>
-            <p>Davomat tasdiqlanganda ustoz oyligi tranzaksiyasi avtomatik yaraladi.</p>
+            <p>Davomat tasdiqlanganda ustoz oyligi tranzaksiyasi avtomatik yaraladi.
+               Eski darslar uchun "Yangi" tugmasi orqali darsni (jadvaldan) tanlab
+               qo'lda ham yaratishingiz mumkin.</p>
         </field>
     </record>
 

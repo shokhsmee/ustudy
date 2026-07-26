@@ -1,6 +1,6 @@
 {
     "name": "UStudy eLearning Homework",
-    "version": "1.7.4",
+    "version": "1.7.6",
     "summary": "Homework & grading for eLearning lessons",
     "category": "Education",
     "author": "Shohjahon Obruyev",

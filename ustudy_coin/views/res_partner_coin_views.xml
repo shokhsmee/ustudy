@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Coin ledger list (opened by the smart button) -->
+    <record id="view_homework_submission_coin_list" model="ir.ui.view">
+        <field name="name">edu.homework.submission.coin.list</field>
+        <field name="model">edu.homework.submission</field>
+        <field name="arch" type="xml">
+            <list string="Coin tizimi" create="0" delete="0"
+                  decoration-success="state == 'graded'"
+                  decoration-danger="state == 'failed'">
+                <field name="homework_id" string="Vazifa"/>
+                <field name="task_lesson_label" string="Dars"/>
+                <field name="task_group_id" string="Guruh"/>
+                <field name="submit_date" string="Sana"/>
+                <field name="mark" string="Ball"/>
+                <field name="pass_mark" string="O'tish bali" optional="hide"/>
+                <field name="state" string="Holat" widget="badge"
+                       decoration-success="state == 'graded'"
+                       decoration-danger="state == 'failed'"
+                       decoration-info="state == 'submitted'"/>
+                <field name="xp_amount" string="Coin" sum="Jami coin"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_student_partner_form_coin" model="ir.ui.view">
+        <field name="name">res.partner.form.student.coin</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="ustudy_student.view_student_partner_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Coin smart button -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_coins" type="object"
+                        class="oe_stat_button" icon="fa-database"
+                        invisible="not is_student">
+                    <field name="coin_total" widget="statinfo" string="Coin"/>
+                </button>
+            </xpath>
+
+            <!-- Coin tizimi tab -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Coin tizimi" name="coin_page"
+                      invisible="not is_student">
+                    <field name="coin_data_json" widget="coin_table" nolabel="1"
+                           class="w-100"/>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,243 @@
+// ===== Coin tizimi (student card) =====
+
+// The form field wrapper renders inline-block by default — stretch the
+// whole widget to the sheet width so the tab content fits the page.
+.o_field_coin_table {
+    display: block;
+    width: 100%;
+}
+
+.uc_coin_wrap {
+    width: 100%;
+    padding: 4px 0 16px;
+}
+
+// ---------- full-page dashboard (client action) ----------
+.uc_dashboard {
+    padding: 20px 28px;
+    overflow: auto;
+
+    .uc_dash_header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 18px;
+
+        .uc_dash_title {
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.15;
+        }
+        .uc_dash_sub {
+            font-size: 13px;
+            opacity: 0.65;
+        }
+    }
+}
+
+// ---------- coin icon (pure CSS, gold, spinning) ----------
+@keyframes uc-coin-spin {
+    0%   { transform: rotateY(0deg); }
+    45%  { transform: rotateY(360deg); }
+    100% { transform: rotateY(360deg); }
+}
+
+.uc_coin_icon {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 30% 30%, #ffe98a, #f5c542 55%, #c98f1b);
+    box-shadow:
+        inset 0 0 0 3px rgba(255, 255, 255, 0.35),
+        inset 0 -3px 6px rgba(120, 70, 0, 0.45),
+        0 2px 6px rgba(0, 0, 0, 0.25);
+    animation: uc-coin-spin 3.5s ease-in-out infinite;
+    transform-style: preserve-3d;
+
+    .uc_coin_face {
+        font-weight: 800;
+        font-size: 20px;
+        color: #7a5200;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+        user-select: none;
+    }
+
+    &.uc_coin_icon_lg {
+        width: 72px;
+        height: 72px;
+        .uc_coin_face { font-size: 34px; }
+    }
+}
+
+.uc_coin_mini {
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: #7a5200;
+    background: radial-gradient(circle at 30% 30%, #ffe98a, #f5c542 55%, #c98f1b);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+    vertical-align: text-bottom;
+}
+
+// ---------- KPI cards ----------
+.uc_kpi_row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+@keyframes uc-card-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.uc_kpi_card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 130px;
+    padding: 12px 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(128, 128, 128, 0.25);
+    background: rgba(128, 128, 128, 0.06);
+    animation: uc-card-in 0.35s ease-out both;
+
+    &:nth-child(2) { animation-delay: 0.05s; }
+    &:nth-child(3) { animation-delay: 0.10s; }
+    &:nth-child(4) { animation-delay: 0.15s; }
+    &:nth-child(5) { animation-delay: 0.20s; }
+
+    .uc_kpi_value {
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1.1;
+    }
+    .uc_kpi_label {
+        font-size: 12px;
+        opacity: 0.65;
+    }
+
+    &.uc_kpi_total {
+        border-color: rgba(245, 197, 66, 0.55);
+        background: linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(245, 197, 66, 0.04));
+        .uc_total_value { color: #d99a00; font-size: 26px; }
+    }
+    &.uc_kpi_pass .uc_kpi_value { color: #28a745; }
+    &.uc_kpi_fail .uc_kpi_value { color: #dc3545; }
+}
+
+// ---------- table ----------
+.uc_table_wrap {
+    overflow-x: auto;
+    border: 1px solid rgba(128, 128, 128, 0.25);
+    border-radius: 12px;
+}
+
+.uc_table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+
+    th, td {
+        padding: 9px 14px;
+        text-align: left;
+        white-space: nowrap;
+    }
+    th {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        opacity: 0.6;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+    }
+    td { border-bottom: 1px solid rgba(128, 128, 128, 0.12); }
+    tbody tr:last-child td { border-bottom: none; }
+
+    .uc_num { text-align: right; }
+    .uc_task { font-weight: 600; }
+    .uc_date { opacity: 0.75; }
+    .uc_passmark {
+        font-size: 11px;
+        opacity: 0.55;
+        margin-left: 2px;
+    }
+    .uc_attempts {
+        margin-left: 6px;
+        font-size: 11px;
+        opacity: 0.6;
+    }
+}
+
+@keyframes uc-row-in {
+    from { opacity: 0; transform: translateX(-14px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+.uc_row {
+    animation: uc-row-in 0.4s ease-out both;
+    transition: background-color 0.15s ease, transform 0.15s ease;
+
+    &:hover {
+        background: rgba(245, 197, 66, 0.08);
+    }
+}
+
+// ---------- badges ----------
+.uc_badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+
+    &.uc_badge_graded    { color: #1c7c31; background: rgba(40, 167, 69, 0.16); }
+    &.uc_badge_failed    { color: #b02a37; background: rgba(220, 53, 69, 0.16); }
+    &.uc_badge_submitted { color: #0a6a8a; background: rgba(23, 162, 184, 0.16); }
+    &.uc_badge_not_submitted { color: #6c757d; background: rgba(108, 117, 125, 0.16); }
+}
+
+// ---------- coins cell ----------
+@keyframes uc-coin-pop {
+    0%   { transform: scale(0.6); opacity: 0; }
+    70%  { transform: scale(1.12); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.uc_coins {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 700;
+
+    &.uc_coins_earned {
+        color: #d99a00;
+        animation: uc-coin-pop 0.5s ease-out both;
+    }
+    &.uc_coins_zero {
+        opacity: 0.4;
+        .uc_coin_mini { filter: grayscale(1); }
+    }
+}
+
+// ---------- empty state ----------
+.uc_empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 40px 16px;
+    text-align: center;
+
+    .uc_empty_title { font-size: 16px; font-weight: 600; }
+    .uc_empty_sub { font-size: 13px; opacity: 0.6; }
+}

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ============ Category + Privilege (Odoo 19) ============ -->
+        <record id="module_category_amocrm" model="ir.module.category">
+            <field name="name">amoCRM</field>
+            <field name="description">amoCRM integratsiyasi rollari</field>
+            <field name="sequence">53</field>
+        </record>
+
+        <record id="privilege_amocrm" model="res.groups.privilege">
+            <field name="name">amoCRM roli</field>
+            <field name="category_id" ref="module_category_amocrm"/>
+            <field name="sequence">53</field>
+        </record>
+
+        <!-- ============ Roles ============ -->
+
+        <!-- Foydalanuvchi: KPI dashboard ma'lumotlarini ko'ra oladi (masalan
+             xodim kartochkasidagi tugma orqali), root app menyu ko'rinmaydi -->
+        <record id="group_amocrm_user" model="res.groups">
+            <field name="name">Foydalanuvchi</field>
+            <field name="privilege_id" ref="privilege_amocrm"/>
+            <field name="comment">KPI dashboard va xodimlar ro'yxatini o'qiy oladi;
+                amoCRM ilovasi (root menyu) ko'rinmaydi.</field>
+        </record>
+
+        <!-- Administrator: sees the root app, manages employees/settings -->
+        <record id="group_amocrm_admin" model="res.groups">
+            <field name="name">Administrator</field>
+            <field name="privilege_id" ref="privilege_amocrm"/>
+            <field name="implied_ids" eval="[(4, ref('group_amocrm_user'))]"/>
+            <field name="comment">amoCRM ilovasini to'liq boshqaradi
+                (root menyu faqat shu rolga ko'rinadi).</field>
+        </record>
+
+        <!-- System admins are amoCRM admins automatically -->
+        <record id="base.group_system" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('group_amocrm_admin'))]"/>
+        </record>
+
+    </data>
+</odoo>

@@ -8,6 +8,7 @@
             <xpath expr="//sheet//group[1]" position="after">
                 <group>
                     <field name="pbx_extension"/>
+                    <field name="amocrm_user_id"/>
                 </group>
             </xpath>
         </field>

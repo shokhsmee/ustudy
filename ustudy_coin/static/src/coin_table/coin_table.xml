@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- ===== Shared visual core (KPI cards + animated table) =====
+         Called from both the field widget and the client action; reads
+         data / state.displayTotal / fmt() / rowDelay() from the component. -->
+    <t t-name="ustudy_coin.CoinBody">
+        <div class="uc_coin_wrap">
+
+            <!-- KPI header -->
+            <div class="uc_kpi_row">
+                <div class="uc_kpi_card uc_kpi_total">
+                    <div class="uc_coin_icon" aria-hidden="true">
+                        <span class="uc_coin_face">C</span>
+                    </div>
+                    <div class="uc_kpi_body">
+                        <div class="uc_kpi_value uc_total_value">
+                            <t t-esc="fmt(state.displayTotal)"/>
+                        </div>
+                        <div class="uc_kpi_label">Jami coin</div>
+                    </div>
+                </div>
+
+                <div class="uc_kpi_card">
+                    <div class="uc_kpi_body">
+                        <div class="uc_kpi_value"><t t-esc="data.task_count"/></div>
+                        <div class="uc_kpi_label">Vazifalar</div>
+                    </div>
+                </div>
+
+                <div class="uc_kpi_card uc_kpi_pass">
+                    <div class="uc_kpi_body">
+                        <div class="uc_kpi_value"><t t-esc="data.passed_count"/></div>
+                        <div class="uc_kpi_label">O'tgan</div>
+                    </div>
+                </div>
+
+                <div class="uc_kpi_card uc_kpi_fail">
+                    <div class="uc_kpi_body">
+                        <div class="uc_kpi_value"><t t-esc="data.failed_count"/></div>
+                        <div class="uc_kpi_label">Yiqilgan</div>
+                    </div>
+                </div>
+
+                <div class="uc_kpi_card">
+                    <div class="uc_kpi_body">
+                        <div class="uc_kpi_value"><t t-esc="data.avg_mark"/></div>
+                        <div class="uc_kpi_label">O'rtacha ball</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coin table -->
+            <div class="uc_table_wrap" t-if="data.rows.length">
+                <table class="uc_table">
+                    <thead>
+                        <tr>
+                            <th>Vazifa</th>
+                            <th>Dars</th>
+                            <th>Guruh</th>
+                            <th>Sana</th>
+                            <th class="uc_num">Ball</th>
+                            <th>Holat</th>
+                            <th class="uc_num">Coin</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="data.rows" t-as="row" t-key="row_index"
+                            class="uc_row" t-att-style="rowDelay(row_index)">
+                            <td class="uc_task">
+                                <t t-esc="row.task"/>
+                                <span t-if="row.attempts > 1" class="uc_attempts"
+                                      t-attf-title="{{ row.attempts }} marta topshirilgan">
+                                    ×<t t-esc="row.attempts"/>
+                                </span>
+                            </td>
+                            <td><t t-esc="row.lesson"/></td>
+                            <td><t t-esc="row.group"/></td>
+                            <td class="uc_date"><t t-esc="row.date"/></td>
+                            <td class="uc_num">
+                                <t t-esc="row.mark"/>
+                                <span class="uc_passmark">/ <t t-esc="row.pass_mark"/></span>
+                            </td>
+                            <td>
+                                <span t-attf-class="uc_badge uc_badge_{{ row.state }}">
+                                    <t t-esc="row.state_label"/>
+                                </span>
+                            </td>
+                            <td class="uc_num">
+                                <span t-attf-class="uc_coins {{ row.coins ? 'uc_coins_earned' : 'uc_coins_zero' }}">
+                                    <span class="uc_coin_mini" aria-hidden="true">C</span>
+                                    <t t-esc="fmt(row.coins)"/>
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Empty state -->
+            <div class="uc_empty" t-if="!data.rows.length">
+                <div class="uc_coin_icon uc_coin_icon_lg" aria-hidden="true">
+                    <span class="uc_coin_face">C</span>
+                </div>
+                <div class="uc_empty_title">Hozircha coinlar yo'q</div>
+                <div class="uc_empty_sub">
+                    Vazifa topshirilib baholanganida XP coin sifatida shu yerda ko'rinadi.
+                </div>
+            </div>
+
+        </div>
+    </t>
+
+    <!-- ===== Field widget (student card tab) ===== -->
+    <t t-name="ustudy_coin.CoinTable">
+        <t t-call="ustudy_coin.CoinBody"/>
+    </t>
+
+    <!-- ===== Client action (Coin smart button) ===== -->
+    <t t-name="ustudy_coin.CoinDashboard">
+        <div class="o_action uc_dashboard">
+            <div class="uc_dash_header">
+                <div class="uc_coin_icon" aria-hidden="true">
+                    <span class="uc_coin_face">C</span>
+                </div>
+                <div>
+                    <div class="uc_dash_title">Coin tizimi</div>
+                    <div class="uc_dash_sub" t-if="state.partnerName">
+                        <t t-esc="state.partnerName"/>
+                    </div>
+                </div>
+            </div>
+            <t t-call="ustudy_coin.CoinBody"/>
+        </div>
+    </t>
+
+</templates>

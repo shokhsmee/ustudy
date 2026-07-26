@@ -1,7 +1,7 @@
 {
     "name": "OnlinePBX Call History",
     "summary": "Receive call history from OnlinePBX via webhook",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.2.0",
     "category": "Tools",
     "author": "Shohjahon Obruyev",
     "depends": ["base", "contacts","hr"],

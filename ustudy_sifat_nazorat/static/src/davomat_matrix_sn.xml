@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-inherit="ustudy_group.DavomatMatrix" t-inherit-mode="extension">
+
+    <!-- Confirmed/held cells: sababli → green outline + medkit (top right);
+         absent cells get a bottom-right button opening the sabab wizard -->
+    <xpath expr="//t[@t-else]/td" position="replace">
+        <td t-attf-class="o_dm_cell o_dm_cell_{{ student.cells[lesson.id] || 'empty' }} {{ lesson.unconfirmed ? 'o_dm_cell_unconfirmed' : '' }} {{ student.reasons and student.reasons[lesson.id] === 'sababli' ? 'o_dm_cell_sababli' : '' }}">
+            <t t-if="student.cells[lesson.id] === 'present'">Bor</t>
+            <t t-elif="student.cells[lesson.id] === 'absent'">Yo'q</t>
+            <i t-if="student.reasons and student.reasons[lesson.id] === 'sababli'"
+               class="fa fa-medkit o_dm_medkit" title="Sababli"/>
+            <button t-if="student.cells[lesson.id] === 'absent'" type="button"
+                    class="o_dm_reason_btn"
+                    t-att-title="student.reasons and student.reasons[lesson.id] ? 'Sabab tasnifini oʻzgartirish' : 'Sababli/Sababsiz belgilash'"
+                    t-on-click="() => this.openReasonWizard(lesson.id, student.student_id)">
+                <i t-attf-class="fa {{ student.reasons and student.reasons[lesson.id] ? 'fa-pencil' : 'fa-question-circle' }}"/>
+            </button>
+        </td>
+    </xpath>
+
+    <!-- Today's editable cell: when Yo'q is selected, show the sabab button
+         (bottom right); sababli → green outline on the cell -->
+    <xpath expr="//td[hasclass('o_dm_cell_edit')]" position="attributes">
+        <attribute name="t-attf-class">{{ student.today_status === 'absent' and student.today_reason === 'sababli' ? 'o_dm_cell_sababli' : '' }}</attribute>
+    </xpath>
+    <xpath expr="//td[hasclass('o_dm_cell_edit')]" position="inside">
+        <button t-if="student.today_status === 'absent'" type="button"
+                class="o_dm_reason_btn o_dm_reason_btn_edit"
+                title="Sababli/Sababsiz belgilash"
+                t-on-click="() => this.openReasonWizard(lesson.id, student.student_id)">
+            <i t-attf-class="fa {{ student.today_reason === 'sababli' ? 'fa-medkit' : (student.today_reason ? 'fa-pencil' : 'fa-question-circle') }}"/>
+        </button>
+    </xpath>
+
+</t>
+
+</templates>

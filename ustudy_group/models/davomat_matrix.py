@@ -1,4 +1,5 @@
-from odoo import api, fields, models
+from odoo import api, fields, models, _
+from odoo.exceptions import UserError
 
 # Attendance matrix (Excel-style replacement of the OCA web_timeline view):
 # rows = students, columns = lessons grouped per module, cells = Bor/Yo'q,
@@ -60,16 +61,30 @@ class DavomatMatrix(models.AbstractModel):
             order="start_datetime asc",
         )
 
-        # last confirmed attendance per lesson -> {student_id: status}
+        # last attendance per lesson -> {student_id: status}. Confirmed wins;
+        # a DRAFT attendance (lesson started/completed but the end-photo
+        # confirmation step was never finished) is used as fallback so the
+        # marks still show on the board instead of an empty 0.00% column —
+        # those lessons are flagged "unconfirmed" and rendered faded.
+        # match by timetable (not group_id): a half-created attendance can be
+        # left with NULL stored-related group_id (seen in prod, att 153) and
+        # must still land on its lesson's column
         attendances = self.env["edu.attendance"].search(
-            [("group_id", "=", group.id), ("state", "=", "confirmed")],
+            [("timetable_id", "in", lessons.ids), ("state", "in", ("draft", "confirmed"))],
             order="id asc",
         )
         status_by_lesson = {}
+        confirmed_lessons = set()
         for att in attendances:
-            status_by_lesson[att.timetable_id.id] = {
+            tt_id = att.timetable_id.id
+            if att.state == "confirmed":
+                confirmed_lessons.add(tt_id)
+            elif tt_id in confirmed_lessons:
+                continue  # stray draft next to an already confirmed one
+            status_by_lesson[tt_id] = {
                 line.student_id.id: line.status for line in att.attendance_line_ids
             }
+        draft_only_lessons = set(status_by_lesson) - confirmed_lessons
 
         start_no = max(group.start_lesson_number or 1, 1)
         modules = []  # ordered; one entry per module sequence
@@ -89,6 +104,9 @@ class DavomatMatrix(models.AbstractModel):
                 "raw_date": local.date(),
                 "teacher": tt.teacher_id.sudo().name or "",
                 "held": held,
+                # started (or even completed) but the davomat was never
+                # confirmed — shown faded with a warning on the board
+                "unconfirmed": tt.id in draft_only_lessons,
                 "present": 0,
                 "absent": 0,
             }
@@ -97,6 +115,43 @@ class DavomatMatrix(models.AbstractModel):
                 by_seq[seq] = {"seq": seq, "label": "%d-Modul Davomat" % seq, "lessons": []}
                 modules.append(by_seq[seq])
             by_seq[seq]["lessons"].append(info)
+
+        # ---- today's lesson: drives the in-board teacher flow (Darsni
+        # boshlash → davomat selectorlari → Darsni yakunlash), mirroring the
+        # timetable form. Only the day's own lesson is actionable. ----
+        today = fields.Date.context_today(self)
+        today_tt = lessons.filtered(lambda t: t.start_date == today)[:1]
+        today_status_by_student = {}
+        today_block = {"has_lesson": False, "lesson_id": False}
+        if today_tt:
+            today_att = self.env["edu.attendance"].search(
+                [("timetable_id", "=", today_tt.id)], order="id desc", limit=1,
+            )
+            if today_att:
+                today_status_by_student = {
+                    line.student_id.id: line.status
+                    for line in today_att.attendance_line_ids
+                }
+            info = lesson_infos.get(today_tt.id, {})
+            today_block = {
+                "has_lesson": True,
+                "lesson_id": today_tt.id,
+                "lesson_no": info.get("no"),
+                "date": info.get("date"),
+                "state": today_tt.state,
+                "attendance_id": today_att.id if today_att else False,
+                "attendance_state": today_att.state if today_att else False,
+                # start only when no attendance exists yet and the lesson is not
+                # already completed; otherwise it is either in progress or done.
+                "can_start": not today_att and today_tt.state != "completed",
+                "in_progress": bool(today_att and today_att.state == "draft"),
+                "done": bool(today_att and today_att.state == "confirmed"),
+                "module_seq": (info.get("no", 1) - 1) // lpm + 1,
+                "has_slide": bool(today_tt.slide_id),
+            }
+            # a lesson running right now is legitimately draft — no warning
+            if today_block["in_progress"] and info:
+                info["unconfirmed"] = False
 
         # students: enrollment order. Only active enrollments appear on the
         # attendance sheet — students removed from the group (cancelled /
@@ -139,6 +194,8 @@ class DavomatMatrix(models.AbstractModel):
                 "state": line.state,
                 "state_label": STATE_LABELS.get(line.state, line.state or ""),
                 "removed_date": self._fmt_date(removed_date),
+                # default for today's editable selector (all present on start)
+                "today_status": today_status_by_student.get(line.student_id.id, "present"),
                 "cells": cells,
                 "summary": {
                     str(seq): "Bor %d, Yo'q %d, Sababli 0" % (v["present"], v["absent"])
@@ -173,6 +230,10 @@ class DavomatMatrix(models.AbstractModel):
         for module in modules:
             if any(info["held"] for info in module["lessons"]):
                 current_seq = module["seq"]
+        # when there is a lesson today, open its module so the teacher lands on
+        # the editable column straight away
+        if today_block.get("has_lesson"):
+            current_seq = today_block["module_seq"]
 
         return {
             "group": {
@@ -191,6 +252,96 @@ class DavomatMatrix(models.AbstractModel):
                 "stopped_students": group.stopped_student_count,
             },
             "current_seq": current_seq,
+            "today": today_block,
             "modules": modules,
             "students": students,
+        }
+
+    # ------------------------------------------------------------------
+    # In-board lesson flow (mirrors the timetable form's teacher flow)
+    # ------------------------------------------------------------------
+    @api.model
+    def _today_lesson(self, group):
+        """The group's own lesson scheduled for today (if any)."""
+        today = fields.Date.context_today(self)
+        return self.env["edu.timetable"].search([
+            ("group_id", "=", group.id),
+            ("state", "!=", "cancelled"),
+            ("start_date", "=", today),
+        ], order="start_datetime asc", limit=1)
+
+    @api.model
+    def matrix_start_lesson(self, group_id):
+        """Open the start-photo camera wizard for today's lesson.
+
+        Reuses edu.timetable.action_start_attendance (same slide/duplicate
+        guards) and tags the flow with matrix_flow so the wizard just closes
+        back to the board instead of navigating to the attendance form."""
+        group = self.env["edu.group"].browse(int(group_id))
+        group.check_access("read")
+        tt = self._today_lesson(group)
+        if not tt:
+            raise UserError(_("Bugun uchun dars jadvali topilmadi."))
+        if tt.attendance_ids:
+            raise UserError(_("Bu dars uchun davomat allaqachon boshlangan."))
+        action = tt.action_start_attendance()
+        action.setdefault("context", {})
+        action["context"]["matrix_flow"] = True
+        # doAction() is called client-side with this raw dict, so it needs an
+        # explicit views list (the server only injects one when an action is
+        # executed, not when a method returns a plain dict).
+        action.setdefault("views", [[False, "form"]])
+        return action
+
+    @api.model
+    def matrix_set_status(self, attendance_id, student_id, status):
+        """Set one student's present/absent on the draft attendance (live)."""
+        if status not in ("present", "absent"):
+            raise UserError(_("Noto'g'ri davomat holati."))
+        att = self.env["edu.attendance"].browse(int(attendance_id))
+        if not att.exists():
+            raise UserError(_("Davomat topilmadi."))
+        if att.state != "draft":
+            raise UserError(_("Tasdiqlangan davomatni o'zgartirib bo'lmaydi."))
+        line = att.attendance_line_ids.filtered(
+            lambda l: l.student_id.id == int(student_id))[:1]
+        if line:
+            line.write({"status": status})
+        else:
+            self.env["edu.attendance.line"].create({
+                "attendance_id": att.id,
+                "student_id": int(student_id),
+                "status": status,
+            })
+        return True
+
+    @api.model
+    def matrix_finish_lesson(self, group_id):
+        """Open the Darsni yakunlash (homework) wizard for today's lesson.
+
+        matrix_flow chains it: homework wizard → end-photo camera wizard →
+        attendance confirmed (lesson counts advance + teacher salary snapshot
+        via ustudy_teacher_salary)."""
+        group = self.env["edu.group"].browse(int(group_id))
+        group.check_access("read")
+        tt = self._today_lesson(group)
+        if not tt:
+            raise UserError(_("Bugun uchun dars jadvali topilmadi."))
+        att = self.env["edu.attendance"].search(
+            [("timetable_id", "=", tt.id), ("state", "=", "draft")],
+            order="id desc", limit=1)
+        if not att:
+            raise UserError(_("Avval darsni boshlang."))
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Darsni yakunlash"),
+            "res_model": "edu.lesson.complete.wizard",
+            "view_mode": "form",
+            "views": [[False, "form"]],
+            "target": "new",
+            "context": {
+                "default_timetable_id": tt.id,
+                "matrix_flow": True,
+                "matrix_attendance_id": att.id,
+            },
         }

@@ -8,6 +8,7 @@
             <form js_class="camera_wizard_form">
                 <field name="timetable_id" invisible="1"/>
                 <field name="teacher_image" invisible="1"/>
+                <field name="is_admin" invisible="1"/>
                 
                 <group>
                     <div class="camera_widget_container" style="text-align: center; padding: 20px;">
