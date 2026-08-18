@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Sifat Nazorat",
-    "version": "19.0.1.2.0",
+    "version": "19.0.1.6.0",
     "summary": "Kelmagan o'quvchilar nazorati — sababli/sababsiz tasnifi",
     "description": """
 Sifat Nazorat
@@ -26,12 +26,17 @@ tavsif va chatter bor.
     "depends": [
         "mail",
         "ustudy_group",
+        # Call-history lookup behind the "Qo'ng'iroqlar" smart button. Read-only:
+        # calls are matched by phone number, never linked to nazorat records.
+        "onlinepbx_calls",
     ],
     "data": [
         "security/sifat_nazorat_security.xml",
         "security/ir.model.access.csv",
         "data/ir_sequence.xml",
+        "data/absence_reason_data.xml",
         "views/sifat_nazorat_views.xml",
+        "views/absence_reason_views.xml",
         "views/absence_reason_wizard_views.xml",
         "views/edu_attendance_views.xml",
     ],

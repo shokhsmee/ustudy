@@ -1,4 +1,5 @@
 from odoo import api, fields, models, tools
+from odoo.tools.sql import table_exists
 
 
 class EduStudentLessonPaymentReport(models.Model):
@@ -40,6 +41,32 @@ class EduStudentLessonPaymentReport(models.Model):
 
     def init(self):
         tools.drop_view_if_exists(self.env.cr, self._table)
+
+        # Per-module discounts count as covered (paid) amount once the
+        # student has reached that module. Guarded: on a fresh install this
+        # view's init can run before the discount table exists.
+        has_discounts = table_exists(self.env.cr, "edu_student_module_discount")
+        discount_cte = """,
+                student_discounts AS (
+                    SELECT
+                        gs.student_id,
+                        COALESCE(SUM(d.discount_amount), 0.0) AS total_discount
+                    FROM edu_student_module_discount d
+                    JOIN edu_group_student gs ON gs.id = d.student_line_id
+                    JOIN edu_module m ON m.id = d.module_id
+                    LEFT JOIN edu_module cm ON cm.id = gs.current_module_id
+                    WHERE m.sequence <= COALESCE(cm.sequence, m.sequence)
+                    GROUP BY gs.student_id
+                )""" if has_discounts else ""
+        total_paid_expr = (
+            "COALESCE(sp.total_paid, 0.0) + COALESCE(sd.total_discount, 0.0)"
+            if has_discounts else "COALESCE(sp.total_paid, 0.0)"
+        )
+        discount_join = (
+            "LEFT JOIN student_discounts sd ON sd.student_id = gs.student_id"
+            if has_discounts else ""
+        )
+
         self.env.cr.execute(f"""
             CREATE OR REPLACE VIEW {self._table} AS (
                 WITH company_config AS (
@@ -61,7 +88,7 @@ class EduStudentLessonPaymentReport(models.Model):
                       AND cf.transaction_type = 'income'
                       AND cf.state = 'confirmed'
                     GROUP BY cf.partner_id
-                ),
+                ){discount_cte},
                 base AS (
                     SELECT
                         gs.student_id,
@@ -71,7 +98,7 @@ class EduStudentLessonPaymentReport(models.Model):
                         tt.start_datetime,
                         COALESCE(tt.end_datetime, tt.start_datetime + INTERVAL '90 minutes') AS end_datetime,
                         tt.state AS timetable_state,
-                        COALESCE(sp.total_paid, 0.0) AS total_paid,
+                        {total_paid_expr} AS total_paid,
                         ROW_NUMBER() OVER (
                             PARTITION BY gs.student_id
                             ORDER BY tt.start_datetime ASC, tt.id ASC
@@ -86,6 +113,7 @@ class EduStudentLessonPaymentReport(models.Model):
                         ON tt.group_id = gs.group_id
                         AND tt.state != 'cancelled'
                     LEFT JOIN student_payments sp ON sp.partner_id = gs.student_id
+                    {discount_join}
                     LEFT JOIN company_config cfg ON cfg.company_id = gs.company_id
                 )
                 SELECT

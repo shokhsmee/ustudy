@@ -6,7 +6,11 @@
         <field name="name">edu.sifat.nazorat.list</field>
         <field name="model">edu.sifat.nazorat</field>
         <field name="arch" type="xml">
+            <!-- default_order makes grouped-by-day lists show the LAST day first
+                 (web_read_group orders groups by the orderby when it covers the
+                 groupby field; without it groups come oldest-first). -->
             <list string="Sifat nazorati" js_class="sifat_nazorat_dashboard_list"
+                  default_order="date desc, id desc"
                   decoration-success="reason == 'sababli'"
                   decoration-danger="reason == 'sababsiz'">
                 <field name="name"/>
@@ -19,8 +23,69 @@
                 <field name="reason" widget="badge"
                        decoration-success="reason == 'sababli'"
                        decoration-danger="reason == 'sababsiz'"/>
+                <field name="reason_ids" widget="many2many_tags" optional="show"
+                       options="{'no_create': True}"/>
+                <field name="user_id" widget="many2one_avatar_user" optional="show"/>
+                <field name="activity_ids" widget="list_activity" optional="show"/>
                 <field name="description" optional="hide"/>
+                <field name="state" widget="badge" optional="show"
+                       decoration-success="state == 'organib_chiqildi'"
+                       decoration-warning="state == 'nomalum'"/>
             </list>
+        </field>
+    </record>
+
+    <!-- CRM-style kanban: one column per DAY, latest day first. Records are
+         auto-created from attendance, so quick-create/column-create are off. -->
+    <record id="view_sifat_nazorat_kanban" model="ir.ui.view">
+        <field name="name">edu.sifat.nazorat.kanban</field>
+        <field name="model">edu.sifat.nazorat</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="date:day" default_order="date desc, id desc"
+                    quick_create="false" group_create="false" group_delete="false"
+                    class="o_kanban_small_column" sample="1">
+                <field name="state"/>
+                <field name="reason"/>
+                <field name="student_phone"/>
+                <templates>
+                    <t t-name="card">
+                        <widget name="web_ribbon" title="O'rganib chiqildi"
+                                bg_color="text-bg-success"
+                                invisible="state != 'organib_chiqildi'"/>
+                        <field name="student_id" class="fw-bold fs-5"/>
+                        <div>
+                            <field name="group_id"/>
+                            <span t-if="record.lesson_no.raw_value" class="text-muted">
+                                — <field name="lesson_no"/>-dars</span>
+                        </div>
+                        <div t-if="record.student_phone.raw_value">
+                            <i class="fa fa-phone me-1" title="Telefon"/>
+                            <field name="student_phone" widget="phone"/>
+                        </div>
+                        <field name="reason_ids" widget="many2many_tags"
+                               options="{'no_create': True}"/>
+                        <footer class="pt-1 mt-0">
+                            <div class="d-flex mt-auto align-items-center">
+                                <field name="reason" widget="badge"
+                                       decoration-success="reason == 'sababli'"
+                                       decoration-danger="reason == 'sababsiz'"/>
+                                <field name="activity_ids" widget="kanban_activity"
+                                       class="ms-2"/>
+                            </div>
+                            <div class="d-flex ms-auto align-items-center">
+                                <button name="action_mark_organib_chiqildi" type="object"
+                                        class="btn btn-sm btn-outline-success me-2"
+                                        invisible="state == 'organib_chiqildi'"
+                                        title="O'rganib chiqildi deb belgilash">
+                                    <i class="fa fa-check"/> O'rganib chiqildi
+                                </button>
+                                <field name="user_id" widget="many2one_avatar_user"
+                                       domain="[('share', '=', False)]"/>
+                            </div>
+                        </footer>
+                    </t>
+                </templates>
+            </kanban>
         </field>
     </record>
 
@@ -29,7 +94,31 @@
         <field name="model">edu.sifat.nazorat</field>
         <field name="arch" type="xml">
             <form string="Sifat nazorati yozuvi">
+                <header>
+                    <button name="action_mark_organib_chiqildi" type="object"
+                            string="O'rganib chiqildi" class="btn-success"
+                            invisible="state == 'organib_chiqildi'"/>
+                    <button name="action_mark_nomalum" type="object"
+                            string="Noma'lumga qaytarish"
+                            invisible="state == 'nomalum'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="nomalum,organib_chiqildi"/>
+                </header>
                 <sheet>
+                    <widget name="web_ribbon" title="O'rganib chiqildi"
+                            bg_color="text-bg-success"
+                            invisible="state != 'organib_chiqildi'"/>
+                    <!-- OnlinePBX: number of calls made to/from this student's
+                         phone. Filter only — nothing is linked or written. -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_pbx_calls" type="object"
+                                class="oe_stat_button" icon="fa-phone"
+                                invisible="not student_phone"
+                                title="Shu raqamga tegishli barcha qo'ng'iroqlar">
+                            <field name="pbx_call_count" widget="statinfo"
+                                   string="Qo'ng'iroqlar"/>
+                        </button>
+                    </div>
                     <div class="oe_title">
                         <h1><field name="name" readonly="1"/></h1>
                     </div>
@@ -43,7 +132,12 @@
                             <field name="lesson_no"/>
                         </group>
                         <group string="Tasnif">
+                            <field name="user_id" widget="many2one_avatar_user"
+                                   domain="[('share', '=', False)]"/>
                             <field name="reason" widget="radio" options="{'horizontal': true}"/>
+                            <field name="reason_ids" widget="many2many_tags"
+                                   options="{'no_create': True}"
+                                   placeholder="Sabablarni tanlang..."/>
                             <field name="timetable_id" readonly="1"/>
                             <field name="attendance_id" readonly="1"/>
                             <field name="company_id" invisible="1"/>
@@ -70,6 +164,20 @@
                 <field name="student_id"/>
                 <field name="group_id"/>
                 <field name="teacher_id"/>
+                <field name="reason_ids"/>
+                <field name="user_id"/>
+                <filter name="filter_my_records" string="Mening yozuvlarim"
+                        domain="[('user_id', '=', uid)]"/>
+                <filter name="filter_unassigned" string="Mas'ul belgilanmagan"
+                        domain="[('user_id', '=', False)]"/>
+                <separator/>
+                <filter name="filter_activities_my" string="Mening faoliyatlarim"
+                        domain="[('activity_user_id', '=', uid)]"/>
+                <filter name="filter_activities_overdue" string="Kechikkan faoliyatlar"
+                        domain="[('activity_date_deadline', '&lt;', 'today')]"/>
+                <filter name="filter_activities_today" string="Bugungi faoliyatlar"
+                        domain="[('activity_date_deadline', '=', 'today')]"/>
+                <separator/>
                 <filter name="filter_sababli" string="Sababli"
                         domain="[('reason', '=', 'sababli')]"/>
                 <filter name="filter_sababsiz" string="Sababsiz"
@@ -77,14 +185,27 @@
                 <filter name="filter_unset" string="Tasniflanmagan"
                         domain="[('reason', '=', False)]"/>
                 <separator/>
+                <!-- default filter (set in the action context): reviewed
+                     records are hidden, like won/lost leads in CRM -->
+                <filter name="filter_nomalum" string="Noma'lum"
+                        domain="[('state', '=', 'nomalum')]"/>
+                <filter name="filter_organib_chiqildi" string="O'rganib chiqildi"
+                        domain="[('state', '=', 'organib_chiqildi')]"/>
+                <separator/>
                 <filter name="filter_date" string="Sana" date="date"/>
                 <separator/>
                 <filter name="groupby_day" string="Kun bo'yicha"
                         context="{'group_by': 'date:day'}"/>
                 <filter name="groupby_group" string="Guruh bo'yicha"
                         context="{'group_by': 'group_id'}"/>
-                <filter name="groupby_reason" string="Sabab bo'yicha"
+                <filter name="groupby_reason" string="Tasnif bo'yicha"
                         context="{'group_by': 'reason'}"/>
+                <filter name="groupby_reason_ids" string="Sabablari bo'yicha"
+                        context="{'group_by': 'reason_ids'}"/>
+                <filter name="groupby_state" string="Holat bo'yicha"
+                        context="{'group_by': 'state'}"/>
+                <filter name="groupby_user" string="Mas'ul bo'yicha"
+                        context="{'group_by': 'user_id'}"/>
             </search>
         </field>
     </record>
@@ -92,8 +213,8 @@
     <record id="action_sifat_nazorat" model="ir.actions.act_window">
         <field name="name">Davomat nazorati</field>
         <field name="res_model">edu.sifat.nazorat</field>
-        <field name="view_mode">list,form</field>
-        <field name="context">{'search_default_groupby_day': 1, 'search_default_groupby_group': 1}</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="context">{'search_default_groupby_day': 1, 'search_default_groupby_group': 1, 'search_default_filter_nomalum': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Hozircha yozuvlar yo'q</p>
             <p>Davomatda "Yo'q" (kelmadi) belgilangan har bir o'quvchi uchun

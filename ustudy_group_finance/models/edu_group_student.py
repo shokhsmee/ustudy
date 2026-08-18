@@ -40,6 +40,12 @@ class ResPartner(models.Model):
         store=False,
     )
 
+    module_discount_ids = fields.One2many(
+        "edu.student.module.discount",
+        "student_id",
+        string="Modul chegirmalari",
+    )
+
     def _compute_student_lesson_payment_stats(self):
         payment_type = self.env['cc.payment.type'].search([
             ('code', '=', 'student_module'),
@@ -77,6 +83,12 @@ class ResPartner(models.Model):
                     ('state', '=', 'confirmed'),
                 ])
                 paid_amount = sum(payments.mapped('amount'))
+
+            # Module discounts count as covered amount (up to each
+            # enrollment's current module).
+            paid_amount += sum(
+                line._get_counted_discount_total() for line in group_lines
+            )
 
             paid_lessons = int(paid_amount / per_lesson) if per_lesson > 0 else 0
 

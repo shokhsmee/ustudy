@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 
 class EduModulePaymentWizard(models.TransientModel):
@@ -75,6 +75,38 @@ class EduModulePaymentWizard(models.TransientModel):
         readonly=True
     )
 
+    discount_amount = fields.Float(
+        string='Chegirma',
+        compute='_compute_discount_info',
+        help="Discount set for this student's group module "
+             "(Talaba formasi → Moliya sahifasi).",
+    )
+
+    effective_price = fields.Float(
+        string="To'lanishi kerak",
+        compute='_compute_discount_info',
+        help='Module price minus the discount for this student.',
+    )
+
+    remaining_amount = fields.Float(
+        string='Qolgan summa',
+        compute='_compute_discount_info',
+        help='Discounted module price minus what is already paid.',
+    )
+
+    @api.depends('student_line_id', 'module_id', 'current_paid')
+    def _compute_discount_info(self):
+        for wiz in self:
+            if wiz.student_line_id and wiz.module_id:
+                discount = wiz.student_line_id._get_module_discount_amount(wiz.module_id)
+                effective = wiz.student_line_id._get_effective_module_price(wiz.module_id)
+            else:
+                discount = 0.0
+                effective = wiz.module_price
+            wiz.discount_amount = discount
+            wiz.effective_price = effective
+            wiz.remaining_amount = max(0.0, effective - wiz.current_paid)
+
     # --------------------------
     # MODULE CHANGE PART
     # --------------------------
@@ -109,6 +141,17 @@ class EduModulePaymentWizard(models.TransientModel):
             if student_line.current_module_id:
                 res["module_id"] = student_line.current_module_id.id
 
+            # Default amount = remaining sum after the module discount.
+            # Overrides the caller's default_amount (full config price) so
+            # discounted students are charged the discounted remainder.
+            if "amount" in fields_list and res.get("module_id"):
+                module = self.env["edu.module"].browse(res["module_id"])
+                effective = student_line._get_effective_module_price(module)
+                remaining = max(
+                    0.0, effective - student_line.current_module_payment_amount
+                )
+                res["amount"] = remaining
+
         return res
 
     def action_register_payment(self):
@@ -140,10 +183,15 @@ class EduModulePaymentWizard(models.TransientModel):
         if self.notes:
             description_parts.append(self.notes)
 
+        line = self.student_line_id
+        was_frozen = line.state == 'frozen'
+
         finance = self.env['cc.finance'].create({
             'date': self.payment_date,
             'transaction_type': 'income',
-            'partner_id': self.student_line_id.student_id.id,
+            'partner_id': line.student_id.id,
+            'student_line_id': line.id,
+            'module_id': self.module_id.id,
             'payment_method_id': self.payment_method_id.id,
             'payment_type_id': payment_type.id,
             'amount': self.amount,
@@ -151,22 +199,28 @@ class EduModulePaymentWizard(models.TransientModel):
             'state': 'draft',
         })
 
+        # action_confirm (edu_finance) updates the student line itself:
+        # recomputes the module total from all confirmed records, caps the
+        # stored amount at the DISCOUNTED module price, sets the paid flag
+        # and unfreezes. The wizard must NOT add the amount again on top
+        # (doing both double-counted current_module_payment_amount).
         finance.action_confirm()
 
-        # Update student line payment fields
-        new_payment_amount = self.student_line_id.current_module_payment_amount + self.amount
+        new_payment_amount = line.current_module_payment_amount
+        effective_price = line._get_effective_module_price(self.module_id)
 
-        vals = {
-            'current_module_payment_amount': new_payment_amount,
-        }
-
-        # Mark as paid only if total amount >= module price OR admin explicitly overrides
-        if new_payment_amount >= config.module_price or self.is_full_payment:
+        # Admin override: force mark as paid even if below the (discounted) price
+        vals = {}
+        if self.is_full_payment and not line.current_module_paid:
             vals['current_module_paid'] = True
-            if self.student_line_id.state == 'frozen':
+            if line.state == 'frozen':
                 vals['state'] = 'active'
+        if vals:
+            line.write(vals)
 
-        self.student_line_id.write(vals)
+        # Snapshot before a possible module change resets the flag
+        module_fully_paid = line.current_module_paid
+        unfrozen = was_frozen and line.state == 'active'
 
         # If user selected module update
         if self.update_module and self.new_module_id:
@@ -185,13 +239,22 @@ class EduModulePaymentWizard(models.TransientModel):
             _("Amount: %s") % "{:,.2f}".format(self.amount),
             _("Total Paid: %s / %s") % (
                 "{:,.2f}".format(new_payment_amount),
-                "{:,.2f}".format(config.module_price)
+                "{:,.2f}".format(effective_price)
             )
         ]
 
-        if vals.get('current_module_paid'):
+        discount = self.student_line_id._get_module_discount_amount(self.module_id)
+        if discount:
+            message_parts.append(
+                _("💸 Chegirma: %s (modul narxi %s)") % (
+                    "{:,.2f}".format(discount),
+                    "{:,.2f}".format(config.module_price),
+                )
+            )
+
+        if module_fully_paid:
             message_parts.append(_("✅ Module fully paid"))
-            if vals.get('state') == 'active':
+            if unfrozen:
                 message_parts.append(_("🔓 Student unfrozen"))
 
         if self.update_module and self.new_module_id:

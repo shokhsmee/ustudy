@@ -54,6 +54,15 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
+            <!-- Hide "Partner Assignment / Hamkorni tayinlash" (base_geolocalize) -->
+            <xpath expr="//page[@name='geo_location']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <!-- The generic "Finance / Moliya" page (edu_finance) is hidden in
+                 ustudy_group_finance — edu_finance loads AFTER this module, so
+                 its page can't be xpath-ed from here -->
+
             <!-- <xpath expr="//page[@name='contact_addresses']" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath> -->
@@ -117,19 +126,6 @@
 
             <!-- Add tabs (no attrs) -->
             <xpath expr="//notebook" position="inside">
-
-                <page string="Kurslari">
-                    <group>
-                        <group>
-                            <field name="total_courses" readonly="1" string="Barcha kurslar"/>
-                            <field name="avg_progress" readonly="1" string="O'rtacha progress"/>
-                            <field name="avg_mark" readonly="1" string="O'rtacha ball"/>
-                        </group>
-                    </group>
-
-                    <separator string="Kurslar"/>
-                    <field name="slide_channel_partner_ids" readonly="1"/>
-                </page>
 
                 <page string="Dokumentlar">
                     <group string="Passport">

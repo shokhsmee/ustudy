@@ -302,14 +302,24 @@ class CCFinance(models.Model):
                 ])
                 prior_total = sum(prior_payments.mapped('amount'))
                 new_total = prior_total + record.amount
-                # Cap stored amount at module_price (excess carries to next module)
-                stored_amount = min(new_total, config.module_price)
+
+                # Per-student module discount (ustudy_group_finance): the
+                # student owes the discounted price, so completion and the
+                # stored cap use it. hasattr-guarded so edu_finance still
+                # works without the connector module.
+                effective_price = config.module_price
+                if hasattr(line, "_get_effective_module_price"):
+                    effective_price = line._get_effective_module_price(target_module)
+
+                # Cap stored amount at the (discounted) module price
+                # (excess carries to next module)
+                stored_amount = min(new_total, effective_price)
 
                 # Only update student line tracking when paying for the current module
                 if target_module == line.current_module_id:
                     vals = {"current_module_payment_amount": stored_amount}
 
-                    if new_total >= config.module_price:
+                    if new_total >= effective_price:
                         vals["current_module_paid"] = True
                         if line.state == "frozen":
                             vals["state"] = "active"
@@ -360,6 +370,21 @@ class CCFinance(models.Model):
                 continue
 
             if not rec.payment_type_id or rec.payment_type_id.code != "student_module":
+                continue
+
+            # Discounted modules: the remaining sum is generally not a
+            # multiple of the per-lesson price, so the multiple check is
+            # skipped for enrollments that have a discount on this module.
+            line = getattr(rec, "student_line_id", False)
+            module = getattr(rec, "module_id", False) or (
+                line and line.current_module_id
+            )
+            if (
+                line
+                and module
+                and hasattr(line, "_get_module_discount_amount")
+                and line._get_module_discount_amount(module) > 0
+            ):
                 continue
 
             config = self.env["edu.config"].get_config()

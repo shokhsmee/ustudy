@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        One-screen grading dialog. Opened by the "Baholash" row button of the
+        timetable Vazifalar roster (and of the submission lists): the student's
+        last submission — status, urinish, izoh, fayllar, earlier attempts —
+        sits right next to the Ball input, so grading no longer means opening
+        a submissions list and then a submission form per student.
+    -->
+    <record id="view_edu_homework_grade_wizard_form" model="ir.ui.view">
+        <field name="name">edu.homework.grade.wizard.form</field>
+        <field name="model">edu.homework.grade.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Vazifani baholash">
+                <field name="from_roster" invisible="1"/>
+                <field name="has_submission" invisible="1"/>
+                <field name="is_resubmission" invisible="1"/>
+                <field name="attempt_total" invisible="1"/>
+
+                <div class="oe_title">
+                    <h2><field name="student_id" readonly="1"
+                               options="{'no_open': True}"/></h2>
+                </div>
+
+                <!-- Retry banner: the whole point of the resubmission state —
+                     the teacher must see that this ball re-grades a retry. -->
+                <div class="alert alert-warning" role="alert"
+                     invisible="not is_resubmission">
+                    <i class="fa fa-refresh me-1"/>
+                    Bu o'quvchi vazifani <b>qayta topshirgan</b>
+                    (<field name="attempt_no" readonly="1" class="oe_inline"/>-urinish).
+                    Quyidagi ball oxirgi urinishga qo'yiladi.
+                </div>
+
+                <div class="alert alert-info" role="alert"
+                     invisible="has_submission">
+                    O'quvchi hali hech narsa topshirmagan. Ball qo'ysangiz,
+                    uning nomidan topshiriq yaratiladi.
+                </div>
+
+                <group>
+                    <group string="Vazifa">
+                        <field name="homework_id" readonly="1"
+                               options="{'no_open': True}"/>
+                        <field name="lesson_label"/>
+                        <field name="submit_date" invisible="not has_submission"/>
+                        <field name="submission_state" widget="badge"
+                               invisible="not has_submission"
+                               decoration-success="submission_state == 'graded'"
+                               decoration-danger="submission_state == 'failed'"
+                               decoration-info="submission_state == 'submitted'"
+                               decoration-warning="submission_state == 'resubmitted'"/>
+                        <field name="attempt_total" string="Urinishlar soni"
+                               invisible="not has_submission"/>
+                    </group>
+                    <group string="Baholash">
+                        <field name="pass_mark"/>
+                        <field name="mark"/>
+                        <field name="teacher_comment"
+                               placeholder="O'quvchiga izoh..."/>
+                    </group>
+                </group>
+
+                <group string="O'quvchi javobi" invisible="not has_submission">
+                    <field name="student_comment" nolabel="1" colspan="2"
+                           readonly="1" placeholder="Izoh qoldirilmagan"/>
+                    <field name="student_attachment_ids" nolabel="1" colspan="2"
+                           widget="many2many_binary" readonly="1"/>
+                </group>
+
+                <!-- Attempt history replaces the old "Barcha topshiriqlar" page:
+                     every earlier try with its ball, right here. -->
+                <group string="Barcha urinishlar" invisible="attempt_total &lt; 2">
+                    <field name="attempt_ids" nolabel="1" colspan="2" readonly="1">
+                        <list create="false" delete="false" edit="false">
+                            <field name="attempt_no" string="№"/>
+                            <field name="submit_date" string="Topshirilgan"/>
+                            <field name="state" string="Holati" widget="badge"
+                                   decoration-success="state == 'graded'"
+                                   decoration-danger="state == 'failed'"
+                                   decoration-info="state == 'submitted'"
+                                   decoration-warning="state == 'resubmitted'"/>
+                            <field name="mark" string="Ball"/>
+                            <field name="teacher_comment" string="Izoh"/>
+                        </list>
+                    </field>
+                </group>
+
+                <footer>
+                    <button name="action_save" string="Saqlash" type="object"
+                            class="btn-primary" data-hotkey="q"/>
+                    <button name="action_save_next" type="object"
+                            string="Saqlash va keyingisi" class="btn-secondary"
+                            invisible="not from_roster" data-hotkey="w"/>
+                    <button name="action_open_submission_form" type="object"
+                            string="Topshiriq yozuvi" class="btn-link"
+                            invisible="not has_submission"/>
+                    <button string="Bekor qilish" special="cancel"
+                            class="btn-secondary" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

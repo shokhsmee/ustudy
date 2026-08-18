@@ -1,8 +1,27 @@
+// The renderer sits inside Layout's .o_content, which is auto-height: without
+// pinning it the table grows past the viewport and the root's overflow:hidden
+// clips it with NO scrollbar. Bound every link of the flex chain so the grid
+// itself scrolls (this is also what makes the sticky thead/room column work).
+.o_view_controller:has(.o_room_bandlik_view) {
+    min-height: 0;
+    overflow: hidden;
+}
+
 .o_room_bandlik_view {
     overflow: hidden;
+    min-height: 0;
+
+    .o_content {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
 
     .o_room_bandlik {
-        height: 100%;
+        flex: 1 1 auto;
+        min-height: 0;
         overflow: auto;
     }
 

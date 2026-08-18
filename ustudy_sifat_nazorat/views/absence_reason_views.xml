@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Kelmaslik sabablari katalogi — editable list -->
+    <record id="view_absence_reason_list" model="ir.ui.view">
+        <field name="name">edu.absence.reason.list</field>
+        <field name="model">edu.absence.reason</field>
+        <field name="arch" type="xml">
+            <list string="Kelmaslik sabablari" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="active" widget="boolean_toggle" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_absence_reason_search" model="ir.ui.view">
+        <field name="name">edu.absence.reason.search</field>
+        <field name="model">edu.absence.reason</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <filter name="filter_inactive" string="Arxivlangan"
+                        domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_absence_reason" model="ir.actions.act_window">
+        <field name="name">Kelmaslik sabablari</field>
+        <field name="res_model">edu.absence.reason</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Sabab qo'shing</p>
+            <p>Bu ro'yxatdagi sabablar davomat va Sifat Nazorat yozuvlarida
+               ko'p tanlanadigan teg sifatida ishlatiladi
+               (masalan: Kasallik, Oilaviy sabab, Safar).</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_absence_reasons" name="Kelmaslik sabablari"
+              parent="menu_sifat_nazorat_root" action="action_absence_reason"
+              sequence="20"/>
+
+</odoo>

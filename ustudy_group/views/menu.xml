@@ -15,6 +15,7 @@
         <field name="view_mode">kanban,list,form</field>
         <field name="domain">[('is_student','=',True)]</field>
         <field name="context">{'default_is_student': True}</field>
+        <field name="limit">50</field>
         <field name="search_view_id" ref="view_student_partner_search"/>
     </record>
 

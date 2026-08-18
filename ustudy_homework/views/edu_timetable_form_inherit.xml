@@ -34,29 +34,55 @@
                             Tanlangan dars (slide) uchun uy vazifasi biriktirilmagan.
                         </div>
 
-                        <group invisible="not slide_id or not homework_id">
-                            <group>
-                                <field name="homework_id" readonly="1"/>
-                                <field name="homework_pass_mark" readonly="1"/>
-                            </group>
-                            <group>
-                                <field name="submission_ratio" readonly="1"/>
-                                <button name="action_view_group_homework_submissions"
-                                        type="object" string="Baholash"
-                                        class="btn-primary"
-                                        icon="fa-pencil-square-o"/>
-                            </group>
-                        </group>
+                        <!-- Compact one-line header: the vazifa, its pass ball
+                             and the submitted ratio. Grading happens on the
+                             rows below (inline ball or the Baholash dialog),
+                             so the old full-page submissions list is just a
+                             discreet escape hatch for the whole file history. -->
+                        <div class="d-flex align-items-center gap-3 flex-wrap mb-2"
+                             invisible="not slide_id or not homework_id">
+                            <field name="homework_id" readonly="1" nolabel="1"
+                                   class="oe_inline fw-bold"/>
+                            <span class="text-muted">
+                                O'tish bali:
+                                <field name="homework_pass_mark" readonly="1"
+                                       class="oe_inline"/>
+                            </span>
+                            <span class="text-muted">
+                                Topshirgan:
+                                <field name="submission_ratio" readonly="1"
+                                       class="oe_inline"/>
+                            </span>
+                            <button name="action_view_group_homework_submissions"
+                                    type="object" string="Barcha topshiriqlar"
+                                    class="btn-link p-0"
+                                    icon="fa-list-ul"/>
+                        </div>
 
                         <!-- Rows edit inline, but only Ball/Izoh are writable —
                              the report model's write() forwards them to the
-                             student's real submission. -->
+                             student's real submission. The row button opens the
+                             full picture (fayllar, izoh, urinishlar) in one
+                             dialog instead of two more screens. -->
                         <field name="lesson_report_ids" invisible="not slide_id">
                             <list string="Talabalar" create="false"
                                   delete="false" editable="bottom">
                                 <field name="student_id" string="Talaba" readonly="1"/>
-                                <field name="slide_id" string="Dars" readonly="1"/>
-                                <field name="homework_id" string="Uy vazifasi" readonly="1"/>
+                                <field name="slide_id" string="Dars" readonly="1"
+                                       optional="hide"/>
+                                <field name="homework_id" string="Uy vazifasi"
+                                       readonly="1" optional="hide"/>
+                                <field name="homework_state" string="Topshirish holati"
+                                       widget="badge" readonly="1"
+                                       decoration-muted="homework_state == 'not_submitted'"
+                                       decoration-info="homework_state == 'submitted'"
+                                       decoration-warning="homework_state == 'resubmitted'"
+                                       decoration-success="homework_state == 'graded'"
+                                       decoration-danger="homework_state == 'failed'"/>
+                                <field name="attempt_no" string="Urinish"
+                                       readonly="1" optional="show"/>
+                                <field name="submit_date" string="Topshirilgan vaqt"
+                                       readonly="1" optional="hide"/>
                                 <field name="result_state" string="Holati"
                                        widget="badge" readonly="1"
                                        decoration-success="result_state == 'passed'"
@@ -69,6 +95,11 @@
                                        readonly="1" optional="hide"/>
                                 <field name="attendance_status" string="Davomat"
                                        readonly="1" optional="hide"/>
+                                <button name="action_open_grading" type="object"
+                                        string="Baholash"
+                                        icon="fa-pencil-square-o"
+                                        class="btn-link"
+                                        title="Oxirgi topshiriqni ko'rish va baholash"/>
                             </list>
                         </field>
 

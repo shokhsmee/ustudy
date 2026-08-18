@@ -27,6 +27,11 @@
                                     string="Ulanishni tekshirish" class="btn-secondary"
                                     icon="fa-plug"/>
                         </setting>
+                        <setting string="KPI voronkalari"
+                                 help="KPI dashboardlarda lidlar sanaladigan voronkalar (pipeline ID lar, vergul bilan). Bo'sh = Call-Center + Sotuv. 'all' = hamma voronkalar.">
+                            <field name="amocrm_kpi_pipeline_ids"
+                                   placeholder="7889006,10905214"/>
+                        </setting>
                     </block>
                     <block title="Xodimlar (foydalanuvchilar)" name="amocrm_employees"
                            help="amoCRM xodimlarini Odoo ga sinxronlab, har birini Odoo foydalanuvchisiga bog'lang.">

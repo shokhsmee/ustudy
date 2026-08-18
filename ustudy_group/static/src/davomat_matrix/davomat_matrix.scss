@@ -166,8 +166,9 @@ $dm-side: #fff2cc;
             font-weight: 600;
         }
 
-        .o_dm_removed {
+        .o_dm_phone {
             min-width: 110px;
+            white-space: nowrap;
         }
 
         .o_dm_row_cancelled .o_dm_name {

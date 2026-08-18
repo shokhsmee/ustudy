@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Starter reasons — freely editable/archivable in the
+             Kelmaslik sabablari list -->
+        <record id="absence_reason_kasallik" model="edu.absence.reason">
+            <field name="name">Kasallik</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="absence_reason_oilaviy" model="edu.absence.reason">
+            <field name="name">Oilaviy sabab</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="absence_reason_safar" model="edu.absence.reason">
+            <field name="name">Safar</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="absence_reason_boshqa" model="edu.absence.reason">
+            <field name="name">Boshqa</field>
+            <field name="sequence">90</field>
+        </record>
+    </data>
+</odoo>

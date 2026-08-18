@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Main App -->
+    <menuitem id="menu_sales_root"
+              name="Sotuvlar"
+              sequence="55"
+              web_icon="ustudy_sales,static/description/icon.png"
+              groups="group_sales_manager"/>
+
+    <menuitem id="menu_sales_orders"
+              name="Buyurtmalar"
+              parent="menu_sales_root"
+              action="action_edu_sale_order"
+              sequence="10"/>
+
+    <menuitem id="menu_sales_products"
+              name="Kurslar"
+              parent="menu_sales_root"
+              action="action_ustudy_sales_products"
+              sequence="20"/>
+
+</odoo>

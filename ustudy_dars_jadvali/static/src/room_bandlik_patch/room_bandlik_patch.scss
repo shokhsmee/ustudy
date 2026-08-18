@@ -1,0 +1,13 @@
+// booking cards on the Xonalar bandligi grid — same "visibly not a class"
+// striped look as the board's .o_dj_card_booking
+.o_room_bandlik_view .o_rb_lesson.o_rb_booking {
+    border-left-color: #5c6bc0;
+    background: repeating-linear-gradient(
+        45deg,
+        #e8eaf6,
+        #e8eaf6 8px,
+        #dfe2f1 8px,
+        #dfe2f1 16px
+    );
+    color: #283593;
+}

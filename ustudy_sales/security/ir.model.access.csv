@@ -1,0 +1,12 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_edu_sale_order_user,edu.sale.order.user,model_edu_sale_order,base.group_user,1,0,0,0
+access_edu_sale_order_manager,edu.sale.order.manager,model_edu_sale_order,ustudy_sales.group_sales_manager,1,1,1,0
+access_edu_sale_order_system,edu.sale.order.system,model_edu_sale_order,base.group_system,1,1,1,1
+access_edu_sale_order_line_user,edu.sale.order.line.user,model_edu_sale_order_line,base.group_user,1,0,0,0
+access_edu_sale_order_line_manager,edu.sale.order.line.manager,model_edu_sale_order_line,ustudy_sales.group_sales_manager,1,1,1,1
+access_edu_sale_order_line_system,edu.sale.order.line.system,model_edu_sale_order_line,base.group_system,1,1,1,1
+access_edu_sale_invoice_wizard_manager,edu.sale.invoice.wizard.manager,model_edu_sale_invoice_wizard,ustudy_sales.group_sales_manager,1,1,1,1
+access_edu_sale_invoice_wizard_system,edu.sale.invoice.wizard.system,model_edu_sale_invoice_wizard,base.group_system,1,1,1,1
+access_product_template_sales_manager,product.template.sales.manager,product.model_product_template,ustudy_sales.group_sales_manager,1,1,1,0
+access_product_product_sales_manager,product.product.sales.manager,product.model_product_product,ustudy_sales.group_sales_manager,1,1,1,0
+access_product_category_sales_manager,product.category.sales.manager,product.model_product_category,ustudy_sales.group_sales_manager,1,1,1,0

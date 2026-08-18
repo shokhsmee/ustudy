@@ -1,12 +1,17 @@
 from odoo import api, fields, models, _
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
+
+# States that still wait for a teacher's ball. A resubmission is a first-class
+# state ('resubmitted'), so every "not graded yet" check must cover both.
+UNGRADED_STATES = ("submitted", "resubmitted")
 
 
 class EduHomeworkSubmission(models.Model):
     _name = "edu.homework.submission"
     _description = "Homework Submission"
 
-    # submitted first, then graded, then failed; newest first
+    # ungraded first (submitted / resubmitted), then graded, then failed;
+    # newest first
     _order = "state_seq asc, submit_date desc, id desc"
 
     homework_id = fields.Many2one(
@@ -33,13 +38,25 @@ class EduHomeworkSubmission(models.Model):
     state = fields.Selection(
         [
             ("not_submitted", "Not submitted"),
-            ("submitted", "Submitted"),
+            ("submitted", "Topshirilgan"),
+            ("resubmitted", "Qayta topshirilgan"),
             ("graded", "Passed"),
             ("failed", "Failed"),
         ],
         default="submitted",
         string="Status",
         tracking=True,
+    )
+
+    # Ordinal of this submission among the student's attempts at this homework
+    # (1 = first submission, 2+ = resubmission). Stored, so rosters and the SQL
+    # report view can show it without a per-row COUNT.
+    attempt_no = fields.Integer(
+        string="Urinish №",
+        default=1,
+        copy=False,
+        readonly=True,
+        index=True,
     )
 
     # Number of submissions this student made for this homework. >1 means the
@@ -52,16 +69,29 @@ class EduHomeworkSubmission(models.Model):
     )
 
     def _compute_attempt_count(self):
-        for rec in self:
-            # In-memory placeholder rows (students with no submission yet) have
-            # no real id; they represent zero attempts.
-            if not isinstance(rec.id, int):
-                rec.attempt_count = 0
-                continue
-            rec.attempt_count = self.search_count([
-                ("homework_id", "=", rec.homework_id.id),
-                ("student_id", "=", rec.student_id.id),
-            ])
+        """One read_group for the whole recordset — this field is rendered on
+        every row of the grading rosters, so a per-record search_count made the
+        lists crawl."""
+        real = self.filtered(lambda r: isinstance(r.id, int))
+        # In-memory placeholder rows (students with no submission yet) have no
+        # real id; they represent zero attempts.
+        (self - real).attempt_count = 0
+        if not real:
+            return
+        counts = {
+            (homework.id, student.id): count
+            for homework, student, count in self.env["edu.homework.submission"]._read_group(
+                [
+                    ("homework_id", "in", real.homework_id.ids),
+                    ("student_id", "in", real.student_id.ids),
+                ],
+                groupby=["homework_id", "student_id"],
+                aggregates=["__count"],
+            )
+        }
+        for rec in real:
+            rec.attempt_count = counts.get(
+                (rec.homework_id.id, rec.student_id.id), 0)
 
     # used for correct ordering (submitted -> graded -> failed)
     state_seq = fields.Integer(
@@ -73,9 +103,13 @@ class EduHomeworkSubmission(models.Model):
 
     @api.depends("state")
     def _compute_state_seq(self):
+        # NB: 'resubmitted' shares 'submitted''s rank (both are waiting for a
+        # ball) so the values of already-stored rows stay valid — no migration
+        # of state_seq is needed when the new state is introduced.
         mapping = {
             "not_submitted": -1,
             "submitted": 0,
+            "resubmitted": 0,
             "graded": 1,
             "failed": 2,
         }
@@ -164,6 +198,22 @@ class EduHomeworkSubmission(models.Model):
                 homework = self.env["edu.homework"].browse(vals.get("homework_id"))
                 pass_mark = homework.pass_mark if homework else False
                 vals["state"] = self._state_from_mark(vals.get("mark"), pass_mark)
+            # Attempt bookkeeping. A submission for a (homework, student) pair
+            # that already has one is a RESUBMISSION: it gets its own ordinal
+            # and, when it arrives ungraded, the dedicated 'resubmitted' state
+            # so the teacher sees the retry instead of the previous attempt's
+            # verdict. sudo: numbering must not depend on the record rules of
+            # whoever creates the row (student on the website, teacher grading
+            # on a student's behalf).
+            prior = 0
+            if vals.get("homework_id") and vals.get("student_id"):
+                prior = self.sudo().search_count([
+                    ("homework_id", "=", vals["homework_id"]),
+                    ("student_id", "=", vals["student_id"]),
+                ])
+            vals.setdefault("attempt_no", prior + 1)
+            if prior and vals.get("state", "submitted") == "submitted":
+                vals["state"] = "resubmitted"
         records = super().create(vals_list)
         records._award_xp()
         return records
@@ -200,3 +250,19 @@ class EduHomeworkSubmission(models.Model):
                         })
             return True
         return super().write(vals)
+
+    # -------------------------
+    # Grading dialog
+    # -------------------------
+    def action_open_grading(self):
+        """Open the one-screen grading dialog for this submission's student.
+
+        Lets a teacher grade straight from any submission list (Marks menu,
+        Dars vazifasi roster) without drilling into the submission form."""
+        self.ensure_one()
+        if not self.student_id:
+            raise UserError(_("Bu topshiriqda o'quvchi ko'rsatilmagan."))
+        return self.env["edu.homework.grade.wizard"].open_grading(
+            student=self.student_id,
+            homework=self.homework_id,
+        )

@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 import logging
+import time as time_mod
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+
+import requests
 
 from odoo import api, models, _
 from odoo.exceptions import AccessError, UserError
@@ -11,6 +15,38 @@ WON_STATUS = 142   # amoCRM system id: "Успешно реализовано" (
 LOST_STATUS = 143  # amoCRM system id: "Закрыто и не реализовано"
 COURSE_FIELD_NAME = "Asosiy kursi"  # lead custom field (Important tab)
 MAX_PAGES = 200  # 200 × 250 = 50k leads per load, hard stop
+PAGE_LIMIT = 250
+FETCH_WORKERS = 4  # amoCRM rate limit is 7 req/s per account — stay under it
+REQUEST_TIMEOUT = 30
+
+# Leads are counted only in these voronkas (sales flow); other pipelines
+# (HR, SMS, Test...) would inflate lead counts and ruin conversion %.
+# Override in Sozlamalar > amoCRM ("all" = no filter).
+PARAM_PIPELINES = "amocrm.kpi_pipeline_ids"
+DEFAULT_PIPELINE_IDS = "7889006,10905214"  # Call-Center + Sotuv
+
+# Per-worker in-memory TTL cache: the dashboard is re-loaded far more often
+# than amoCRM data meaningfully changes, and every load costs seconds of
+# sequential-by-nature HTTP paging.
+CACHE_TTL_LEADS = 120
+CACHE_TTL_PIPELINES = 600
+_TTL_CACHE = {}
+
+
+def _cache_get(key):
+    item = _TTL_CACHE.get(key)
+    if item and item[0] > time_mod.monotonic():
+        return item[1]
+    _TTL_CACHE.pop(key, None)
+    return None
+
+
+def _cache_set(key, value, ttl):
+    if len(_TTL_CACHE) > 64:
+        now = time_mod.monotonic()
+        for k in [k for k, v in _TTL_CACHE.items() if v[0] <= now]:
+            _TTL_CACHE.pop(k, None)
+    _TTL_CACHE[key] = (time_mod.monotonic() + ttl, value)
 
 
 class AmocrmDashboard(models.AbstractModel):
@@ -37,8 +73,27 @@ class AmocrmDashboard(models.AbstractModel):
         return 12.0 - 0.5 * ((90 - rev_bucket) / 10.0) - 1.0 * (7 - conv_step)
 
     @api.model
+    def _kpi_pipeline_ids(self):
+        """Pipeline (voronka) ids the KPI dashboards count leads in.
+        Config param: comma-separated ids; "all" or any non-numeric value
+        disables the filter."""
+        raw = self.env["ir.config_parameter"].sudo().get_param(
+            PARAM_PIPELINES, DEFAULT_PIPELINE_IDS) or ""
+        ids = []
+        for part in raw.replace(";", ",").split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.append(int(part))
+        return ids
+
+    @api.model
     def _fetch_status_map(self):
         """{(pipeline_id, status_id): {label, color, order}} from amoCRM."""
+        base_url, _token = self.env["amocrm.connector"]._get_credentials()
+        cache_key = ("status_map", base_url)
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
         data = self.env["amocrm.connector"]._request("/api/v4/leads/pipelines")
         status_map = {}
         for p in (data.get("_embedded") or {}).get("pipelines") or []:
@@ -48,27 +103,86 @@ class AmocrmDashboard(models.AbstractModel):
                     "color": s.get("color") or "#e0e0e0",
                     "order": (p.get("sort") or 0) * 100000 + (s.get("sort") or 0),
                 }
+        _cache_set(cache_key, status_map, CACHE_TTL_PIPELINES)
         return status_map
 
     @api.model
     def _fetch_leads(self, from_ts, to_ts, manager_id=False):
-        connector = self.env["amocrm.connector"]
-        leads, page = [], 1
-        while page <= MAX_PAGES:
-            params = {
-                "filter[created_at][from]": from_ts,
-                "filter[created_at][to]": to_ts,
-                "limit": 250,
-                "page": page,
-            }
-            if manager_id:
-                params["filter[responsible_user_id]"] = int(manager_id)
-            data = connector._request("/api/v4/leads", params=params)
-            batch = (data.get("_embedded") or {}).get("leads") or []
-            leads.extend(batch)
-            if len(batch) < 250 or not ((data.get("_links") or {}).get("next")):
-                break
-            page += 1
+        pipeline_ids = self._kpi_pipeline_ids()
+        cache_key = ("leads", from_ts, to_ts,
+                     int(manager_id or 0), tuple(pipeline_ids))
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+
+        base_url, token = self.env["amocrm.connector"]._get_credentials()
+        url = base_url + "/api/v4/leads"
+        headers = {
+            "Authorization": "Bearer %s" % token,
+            "Content-Type": "application/json",
+        }
+        base_params = {
+            "filter[created_at][from]": from_ts,
+            "filter[created_at][to]": to_ts,
+            "limit": PAGE_LIMIT,
+        }
+        if manager_id:
+            base_params["filter[responsible_user_id]"] = int(manager_id)
+        for i, pid in enumerate(pipeline_ids):
+            base_params["filter[pipeline_id][%d]" % i] = pid
+
+        # Pages are fetched by a thread pool without touching self.env —
+        # only plain requests calls happen in the workers.
+        def fetch_page(page):
+            params = dict(base_params, page=page)
+            for attempt in (1, 2, 3):
+                try:
+                    resp = requests.get(url, headers=headers, params=params,
+                                        timeout=REQUEST_TIMEOUT)
+                except requests.RequestException as e:
+                    if attempt == 3:
+                        raise UserError(
+                            _("amoCRM ga ulanib bo'lmadi: %s") % e)
+                    time_mod.sleep(0.5 * attempt)
+                    continue
+                if resp.status_code == 204:
+                    return []
+                if resp.status_code == 429 or resp.status_code >= 500:
+                    if attempt == 3:
+                        raise UserError(
+                            _("amoCRM API xatosi (%s)") % resp.status_code)
+                    time_mod.sleep(0.5 * attempt)
+                    continue
+                if resp.status_code == 401:
+                    raise UserError(_(
+                        "amoCRM: 401 Unauthorized — Access Token noto'g'ri "
+                        "yoki muddati tugagan."))
+                if not resp.ok:
+                    raise UserError(
+                        _("amoCRM API xatosi (%s)") % resp.status_code)
+                try:
+                    data = resp.json()
+                except ValueError:
+                    return []
+                return (data.get("_embedded") or {}).get("leads") or []
+            return []
+
+        leads = []
+        page = 1
+        done = False
+        with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
+            while not done and page <= MAX_PAGES:
+                batch_pages = list(
+                    range(page, min(page + FETCH_WORKERS, MAX_PAGES + 1)))
+                futures = [pool.submit(fetch_page, p) for p in batch_pages]
+                for fut in futures:
+                    batch = fut.result()
+                    leads.extend(batch)
+                    if len(batch) < PAGE_LIMIT:
+                        done = True
+                page = batch_pages[-1] + 1
+
+        _cache_set(cache_key, leads, CACHE_TTL_LEADS)
         return leads
 
     @api.model

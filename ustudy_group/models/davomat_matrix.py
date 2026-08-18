@@ -191,9 +191,9 @@ class DavomatMatrix(models.AbstractModel):
                 "line_id": line.id,
                 "student_id": line.student_id.id,
                 "name": line.student_id.name,
+                "phone": line.student_id.phone or "",
                 "state": line.state,
                 "state_label": STATE_LABELS.get(line.state, line.state or ""),
-                "removed_date": self._fmt_date(removed_date),
                 # default for today's editable selector (all present on start)
                 "today_status": today_status_by_student.get(line.student_id.id, "present"),
                 "cells": cells,

@@ -1,6 +1,6 @@
 {
     "name": "UStudy eLearning Homework",
-    "version": "1.7.6",
+    "version": "1.8.0",
     "summary": "Homework & grading for eLearning lessons",
     "category": "Education",
     "author": "Shohjahon Obruyev",
@@ -20,6 +20,7 @@
         'security/security.xml',
         "security/ir.model.access.csv",
         "views/edu_homework_views.xml",
+        "views/homework_grade_wizard_views.xml",
         "views/edu_lesson_task_views.xml",
         "views/website_homework_templates.xml",
         # "views/student_homeworks_views.xml",

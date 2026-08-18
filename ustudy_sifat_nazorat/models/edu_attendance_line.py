@@ -11,6 +11,13 @@ class EduAttendanceLine(models.Model):
         help="Yo'q (kelmadi) uchun sabab tasnifi. Bo'sh — tasniflanmagan.",
     )
 
+    absence_reason_ids = fields.Many2many(
+        "edu.absence.reason",
+        "edu_att_line_absence_reason_rel", "line_id", "reason_id",
+        string="Sabablari",
+        help="Kelmaslik sabablari — katalogdan bir nechta tanlash mumkin.",
+    )
+
     # ------------------------------------------------------------------
     # Sifat Nazorat sync: absent line <-> one edu.sifat.nazorat record
     # ------------------------------------------------------------------
@@ -49,11 +56,16 @@ class EduAttendanceLine(models.Model):
                         "timetable_id": tt.id if tt else False,
                         "lesson_no": tt.lesson_sequence if tt else 0,
                         "reason": line.absence_reason or False,
+                        "reason_ids": [(6, 0, line.absence_reason_ids.ids)],
                     })
-                elif sn.reason != line.absence_reason:
-                    sn.with_context(skip_line_sync=True).write(
-                        {"reason": line.absence_reason or False}
-                    )
+                else:
+                    sn_vals = {}
+                    if sn.reason != line.absence_reason:
+                        sn_vals["reason"] = line.absence_reason or False
+                    if set(sn.reason_ids.ids) != set(line.absence_reason_ids.ids):
+                        sn_vals["reason_ids"] = [(6, 0, line.absence_reason_ids.ids)]
+                    if sn_vals:
+                        sn.with_context(skip_line_sync=True).write(sn_vals)
             elif sn:
                 # marked present again — the absence never happened
                 sn.unlink()
@@ -71,7 +83,8 @@ class EduAttendanceLine(models.Model):
         res = super().write(vals)
         if (
             not self.env.context.get("skip_sn_sync")
-            and ("status" in vals or "absence_reason" in vals)
+            and ("status" in vals or "absence_reason" in vals
+                 or "absence_reason_ids" in vals)
         ):
             self._sync_sifat_nazorat()
         return res

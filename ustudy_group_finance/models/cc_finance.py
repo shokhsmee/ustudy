@@ -66,6 +66,14 @@ class CCFinance(models.Model):
         store=False,
     )
 
+    module_discount = fields.Float(
+        string="Chegirma",
+        compute="_compute_module_payment_info",
+        store=False,
+        help="Discount set for this student's group module — counts as "
+             "covered amount, the student pays the remainder.",
+    )
+
     module_remaining = fields.Float(
         string="Remaining",
         compute="_compute_module_payment_info",
@@ -102,6 +110,7 @@ class CCFinance(models.Model):
 
         for rec in self:
             already_paid = 0.0
+            discount = 0.0
 
             if rec.partner_id and rec.module_id and payment_type and rec.student_line_id:
                 domain = [
@@ -115,20 +124,24 @@ class CCFinance(models.Model):
                     domain.append(('id', '!=', rec.id))
                 payments = self.env['cc.finance'].search(domain)
                 already_paid = sum(payments.mapped('amount'))
+                discount = rec.student_line_id._get_module_discount_amount(rec.module_id)
 
-            # Cap at module price (excess carries to next module)
+            # Discount counts as covered amount; the student owes the rest.
+            # Cap at module price (excess carries to next module).
+            covered = min(already_paid + discount, module_price)
             already_paid_capped = min(already_paid, module_price)
-            remaining = max(0.0, module_price - already_paid_capped)
-            paid_lessons = int(already_paid_capped / per_lesson) if per_lesson else 0
+            remaining = max(0.0, module_price - covered)
+            paid_lessons = int(covered / per_lesson) if per_lesson else 0
 
-            if already_paid_capped <= 0:
+            if covered <= 0:
                 status = 'not_started'
-            elif already_paid_capped >= module_price:
+            elif covered >= module_price:
                 status = 'paid'
             else:
                 status = 'partial'
 
             rec.module_already_paid = already_paid_capped
+            rec.module_discount = discount
             rec.module_remaining = remaining
             rec.module_paid_lessons = min(paid_lessons, lessons_per_module)
             rec.module_lessons_total = lessons_per_module

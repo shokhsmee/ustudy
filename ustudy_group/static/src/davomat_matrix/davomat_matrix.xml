@@ -65,7 +65,7 @@
                     <thead>
                         <!-- group + module title -->
                         <tr>
-                            <th class="o_dm_group_head" colspan="4">
+                            <th class="o_dm_group_head" colspan="3">
                                 <div class="o_dm_group_name" t-esc="state.data.group.label"/>
                             </th>
                             <th class="o_dm_module_head" t-att-colspan="module.lessons.length + 1"
@@ -74,7 +74,7 @@
 
                         <!-- dates + summary header -->
                         <tr>
-                            <th class="o_dm_subhead" colspan="4">
+                            <th class="o_dm_subhead" colspan="3">
                                 Boshlang'ich sana: <b t-esc="state.data.group.start_date"/>
                             </th>
                             <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
@@ -94,8 +94,7 @@
                         <tr>
                             <th class="o_dm_col_label">ID</th>
                             <th class="o_dm_col_label o_dm_col_name">Ismi - familiya</th>
-                            <th class="o_dm_col_label">Statusi</th>
-                            <th class="o_dm_col_label">Guruhdan chetlatilgan sanasi</th>
+                            <th class="o_dm_col_label">Telefon raqami</th>
                             <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
                                 <th t-attf-class="o_dm_dars {{ lesson.unconfirmed ? 'o_dm_dars_unconfirmed' : '' }}">
                                     <t t-esc="lesson.pos_label"/>
@@ -107,7 +106,7 @@
 
                         <!-- teachers -->
                         <tr>
-                            <th class="o_dm_subhead" colspan="4">Qaysi o'qituvchi dars o'tganligi</th>
+                            <th class="o_dm_subhead" colspan="3">Qaysi o'qituvchi dars o'tganligi</th>
                             <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
                                 <th class="o_dm_teacher" t-esc="lesson.teacher"/>
                             </t>
@@ -115,7 +114,7 @@
 
                         <!-- per-lesson percentage -->
                         <tr>
-                            <th class="o_dm_subhead o_dm_pct_label" colspan="4">Davomat ko'rsatkichlari</th>
+                            <th class="o_dm_subhead o_dm_pct_label" colspan="3">Davomat ko'rsatkichlari</th>
                             <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
                                 <th class="o_dm_pct" t-esc="lesson.pct"/>
                             </t>
@@ -128,11 +127,7 @@
                             t-attf-class="o_dm_row {{ student.state === 'cancelled' ? 'o_dm_row_cancelled' : '' }}">
                             <td class="o_dm_id" t-esc="student.student_id"/>
                             <td class="o_dm_name" t-esc="student.name"/>
-                            <td class="o_dm_state">
-                                <span t-attf-class="o_dm_badge o_dm_badge_{{ student.state }}"
-                                      t-esc="student.state_label"/>
-                            </td>
-                            <td class="o_dm_removed" t-esc="student.removed_date"/>
+                            <td class="o_dm_phone" t-esc="student.phone"/>
                             <t t-foreach="module.lessons" t-as="lesson" t-key="lesson.id">
                                 <t t-if="today.in_progress and lesson.id === today.lesson_id and student.state === 'active'">
                                     <td class="o_dm_cell o_dm_cell_edit">

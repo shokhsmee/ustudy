@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "UStudy Group Finance Connector",
-    "version": "19.0.1.0.1",
+    "version": "19.0.1.1.0",
     "category": "Education",
     "summary": "Connect Education Groups with Finance (Student Payments, Smart Buttons, Wizards)",
     "author": "Shohjahon Obruyev",
@@ -25,6 +25,9 @@
 
         # Smart buttons / student finance view
         "views/edu_group_student_finance_views.xml",
+
+        # Per-module student discounts (Moliya page on the student form)
+        "views/edu_student_module_discount_views.xml",
 
         # Per-lesson payment status report
         "views/edu_student_lesson_payment_views.xml",

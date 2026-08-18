@@ -254,6 +254,10 @@ class EduGroup(models.Model):
         string="Lesson Room",
         ondelete="set null",
         tracking=True,
+        # archived rooms are invisible on the board/bandlik views — lessons
+        # generated into one silently vanish there (2026-07-31 room cleanup
+        # left groups pointing at archived duplicates like "1 Xona")
+        domain=[("active", "=", True)],
     )
 
     notes = fields.Text(string="Notes")
@@ -488,14 +492,10 @@ class EduGroup(models.Model):
             module = self.env["edu.module"].search([], order="sequence asc", limit=1)
         return module, position_in_module
 
-    def write(self, vals):
-        res = super().write(vals)
-        # When the group's starting lesson changes, its students' current module was
-        # snapshotted at create-time from the OLD value and is now stale. Re-baseline
-        # the students that haven't advanced past their starting module yet.
-        if "start_lesson_number" in vals:
-            self._sync_students_starting_module()
-        return res
+    # NOTE: the group's single write() override lives next to the teacher
+    # lock below — a second `def write` in this class would silently shadow
+    # it (Python keeps only the last def), which is exactly the bug that had
+    # disabled the start_lesson_number re-sync until 1.14.0.
 
     def _sync_students_starting_module(self):
         """Re-point student lines to the module implied by the group's start_lesson_number.
@@ -554,7 +554,22 @@ class EduGroup(models.Model):
                     "O'qituvchi guruh sozlamalarini o'zgartira olmaydi (%s). Bu administratsiya vazifasi.",
                     ", ".join(sorted(blocked)),
                 ))
-        return super().write(vals)
+        res = super().write(vals)
+        # When the group's starting lesson changes, its students' current module was
+        # snapshotted at create-time from the OLD value and is now stale. Re-baseline
+        # the students that haven't advanced past their starting module yet.
+        if "start_lesson_number" in vals:
+            self._sync_students_starting_module()
+        # A finished course leaves the schedule: its not-yet-held lessons are
+        # cancelled so they disappear from the timetable/board and stop holding
+        # the room (the conflict check ignores cancelled entries). Held lessons
+        # (in_progress/completed) keep their attendance history untouched.
+        if vals.get("state") == "done":
+            self.env["edu.timetable"].sudo().search([
+                ("group_id", "in", self.ids),
+                ("state", "=", "scheduled"),
+            ]).write({"state": "cancelled"})
+        return res
 
 
     attendance_count = fields.Integer(

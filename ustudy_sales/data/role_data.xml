@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Rollar menyusida (base_user_role) tayyor "Sotuv menejeri" roli -->
+        <record id="role_sales_manager" model="res.users.role">
+            <field name="name">Sotuv menejeri</field>
+            <field name="implied_ids" eval="[(4, ref('ustudy_sales.group_sales_manager'))]"/>
+        </record>
+
+    </data>
+</odoo>

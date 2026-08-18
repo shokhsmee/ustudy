@@ -1,3 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_edu_module_payment_wizard,access.edu.module.payment.wizard,model_edu_module_payment_wizard,base.group_user,1,1,1,0
 access_edu_student_lesson_payment_report,access.edu.student.lesson.payment.report,model_edu_student_lesson_payment_report,base.group_user,1,0,0,0
+access_edu_student_module_discount_user,access.edu.student.module.discount.user,model_edu_student_module_discount,base.group_user,1,0,0,0
+access_edu_student_module_discount_income_mgr,access.edu.student.module.discount.income.mgr,model_edu_student_module_discount,edu_finance.group_finance_income_manager,1,1,1,1
+access_edu_student_module_discount_edu_admin,access.edu.student.module.discount.edu.admin,model_edu_student_module_discount,ustudy_group.group_edu_admin,1,1,1,1

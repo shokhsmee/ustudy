@@ -31,6 +31,7 @@
                     widget="badge"
                     decoration-muted="homework_state == 'not_submitted'"
                     decoration-info="homework_state == 'submitted'"
+                    decoration-warning="homework_state == 'resubmitted'"
                     decoration-success="homework_state == 'graded'"
                     decoration-danger="homework_state == 'failed'"/>
 

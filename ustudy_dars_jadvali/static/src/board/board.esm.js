@@ -85,11 +85,56 @@ export class DarsJadvaliBoard extends Component {
     }
 
     async openCard(card) {
+        if (card.kind === "booking") {
+            // non-lesson room booking: open its own record so it can be
+            // edited or released (deleted)
+            this.action.doAction(
+                {
+                    type: "ir.actions.act_window",
+                    name: card.purpose_label,
+                    res_model: "dars.jadvali.booking",
+                    res_id: card.booking_id,
+                    views: [[false, "form"]],
+                    target: "new",
+                },
+                { onClose: () => this.load() }
+            );
+            return;
+        }
         const action = await this.orm.call("dars.jadvali.board", "open_lesson_wizard", [
             card.group_id,
             card.timetable_ids,
         ]);
         this.action.doAction(action);
+    }
+
+    openAddLesson(week, block, row, room) {
+        // default date = first day of the clicked parity block in that week
+        // (toq -> Monday, juft -> Tuesday); the wizard lets the user change it
+        const d = new Date(week.date_from);
+        if (block.parity === "juft") {
+            d.setDate(d.getDate() + 1);
+        }
+        const startTime = row.start_min / 60;
+        this.action.doAction(
+            {
+                type: "ir.actions.act_window",
+                name: "Xonani band qilish",
+                res_model: "dars.jadvali.add.lesson.wizard",
+                views: [[false, "form"]],
+                target: "new",
+                context: {
+                    default_room_id: room.id,
+                    default_lesson_date: toISO(d),
+                    default_start_time: startTime,
+                    default_end_time: startTime + 1.5,
+                    // the board only adds lessons; full booking (majlis/
+                    // konsultatsiya/mehmon) lives on Xonalar bandligi
+                    default_dars_only: true,
+                },
+            },
+            { onClose: () => this.load() }
+        );
     }
 }
 

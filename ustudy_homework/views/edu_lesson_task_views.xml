@@ -123,9 +123,11 @@
         <field name="arch" type="xml">
             <form string="Dars vazifasi">
                 <header>
+                    <!-- Grading itself happens per row (Baholash dialog); this
+                         only opens the raw submission records. -->
                     <button name="action_open_submissions" type="object"
-                            string="Baholash (fayllar bilan)" class="btn-primary"
-                            icon="fa-pencil-square-o"/>
+                            string="Barcha topshiriqlar" class="btn-secondary"
+                            icon="fa-list-ul"/>
                 </header>
                 <sheet>
                     <div class="oe_title">
@@ -165,12 +167,21 @@
                                            widget="badge"
                                            decoration-success="state == 'graded'"
                                            decoration-info="state == 'submitted'"
+                                           decoration-warning="state == 'resubmitted'"
                                            decoration-danger="state == 'failed'"
                                            decoration-muted="state == 'not_submitted'"/>
+                                    <field name="attempt_no" string="Urinish" readonly="1" optional="show"/>
                                     <field name="task_due_date" string="Deadline" readonly="1" optional="show"/>
                                     <field name="teacher_comment" string="Izoh" optional="show"/>
                                     <field name="comment" string="O'quvchi izohi" readonly="1" optional="hide"/>
                                     <field name="attempt_count" string="Urinishlar" readonly="1" optional="hide"/>
+                                    <!-- Hidden on never-submitted placeholder rows:
+                                         they have no record to open yet (ball is
+                                         typed inline instead). -->
+                                    <button name="action_open_grading" type="object"
+                                            string="Baholash" icon="fa-pencil-square-o"
+                                            class="btn-link" invisible="not id"
+                                            title="Oxirgi topshiriqni ko'rish va baholash"/>
                                 </list>
                             </field>
                         </page>
@@ -181,22 +192,10 @@
                             </group>
                             <field name="attachment_ids" widget="many2many_binary"/>
                         </page>
-                        <page string="Barcha topshiriqlar" name="submissions"
-                              groups="base.group_system">
-                            <field name="submission_ids">
-                                <list editable="bottom">
-                                    <field name="student_id" readonly="1"/>
-                                    <field name="submit_date" readonly="1"/>
-                                    <field name="state" readonly="1" widget="badge"
-                                           decoration-info="state == 'submitted'"
-                                           decoration-success="state == 'graded'"
-                                           decoration-danger="state == 'failed'"/>
-                                    <field name="comment" readonly="1" string="O'quvchi izohi"/>
-                                    <field name="mark"/>
-                                    <field name="teacher_comment"/>
-                                </list>
-                            </field>
-                        </page>
+                        <!-- The former admin-only "Barcha topshiriqlar" page is
+                             gone: every attempt of a student (with its ball and
+                             izoh) is listed inside the Baholash dialog, and the
+                             raw records stay reachable from the header button. -->
                     </notebook>
                 </sheet>
                 <chatter/>

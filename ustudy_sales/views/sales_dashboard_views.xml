@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_sales_kpi_dashboard" model="ir.actions.client">
+        <field name="name">Sotuv KPI Dashboard</field>
+        <field name="tag">ustudy_sales.sales_kpi_dashboard</field>
+    </record>
+
+    <menuitem id="menu_sales_kpi_dashboard"
+              name="KPI Dashboard"
+              parent="menu_sales_root"
+              action="action_sales_kpi_dashboard"
+              sequence="15"/>
+
+</odoo>

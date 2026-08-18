@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Moliya yozuvi formasida buyurtma havolasi -->
+    <record id="view_cc_finance_form_sales" model="ir.ui.view">
+        <field name="name">cc.finance.form.sales.order</field>
+        <field name="model">cc.finance</field>
+        <field name="inherit_id" ref="edu_finance.view_cc_finance_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@class='oe_title']" position="before">
+                <div class="oe_button_box" name="button_box">
+                    <button name="action_open_sale_order" type="object"
+                            class="oe_stat_button" icon="fa-shopping-cart"
+                            invisible="not sale_order_id">
+                        <div class="o_stat_info">
+                            <span class="o_stat_text">Buyurtma</span>
+                            <span class="o_stat_value">
+                                <field name="sale_order_id" readonly="1" nolabel="1"/>
+                            </span>
+                        </div>
+                    </button>
+                </div>
+            </xpath>
+            <xpath expr="//group[@name='related_to_group']" position="inside">
+                <group>
+                    <field name="sale_order_id"
+                           options="{'no_create': True}"
+                           invisible="transaction_type != 'income'"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Ro'yxatda ixtiyoriy ustun -->
+    <record id="view_cc_finance_tree_sales" model="ir.ui.view">
+        <field name="name">cc.finance.tree.sales.order</field>
+        <field name="model">cc.finance</field>
+        <field name="inherit_id" ref="edu_finance.view_cc_finance_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="sale_order_id" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Qidiruvda buyurtma bo'yicha izlash -->
+    <record id="view_cc_finance_search_sales" model="ir.ui.view">
+        <field name="name">cc.finance.search.sales.order</field>
+        <field name="model">cc.finance</field>
+        <field name="inherit_id" ref="edu_finance.view_cc_finance_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="sale_order_id"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

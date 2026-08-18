@@ -94,6 +94,9 @@
                                         <span t-if="rec.homework_state == 'submitted'" class="badge bg-info">
                                             Submitted
                                         </span>
+                                        <span t-if="rec.homework_state == 'resubmitted'" class="badge bg-warning">
+                                            Qayta topshirilgan
+                                        </span>
                                         <span t-if="rec.homework_state == 'graded'" class="badge bg-success">
                                             Passed
                                         </span>

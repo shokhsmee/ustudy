@@ -45,6 +45,9 @@
                         <t t-elif="hw_last.state == 'submitted'">
                           <span class="badge bg-secondary ms-2">Submitted</span>
                         </t>
+                        <t t-elif="hw_last.state == 'resubmitted'">
+                          <span class="badge bg-warning ms-2">Qayta topshirilgan</span>
+                        </t>
                       </t>
                     </t>
 
@@ -440,11 +443,12 @@
             </div>
           </t>
 
-          <t t-if="last_sub and last_sub.state == 'submitted'">
+          <t t-if="last_sub and last_sub.state in ('submitted', 'resubmitted')">
             <div class="hw-status pending">
               <div class="hw-status-icon">⏳</div>
               <div class="hw-status-text">
-                <strong>Submitted</strong><br/>
+                <strong t-if="last_sub.state == 'resubmitted'">Resubmitted</strong>
+                <strong t-else="">Submitted</strong><br/>
                 <span style="font-size:0.82rem; color:#92640a;">Waiting for teacher to grade.</span>
               </div>
             </div>
@@ -582,7 +586,7 @@
       <t t-elif="my_state == 'failed'">
         <span class="badge bg-danger ms-2">❌ Failed</span>
       </t>
-      <t t-elif="my_state == 'submitted'">
+      <t t-elif="my_state in ('submitted', 'resubmitted')">
         <span class="badge bg-secondary ms-2">⏳ Submitted</span>
       </t>
 

@@ -18,6 +18,7 @@
                 <field name="state" string="Holat" widget="badge"
                        decoration-success="state == 'graded'"
                        decoration-danger="state == 'failed'"
+                       decoration-warning="state == 'resubmitted'"
                        decoration-info="state == 'submitted'"/>
                 <field name="xp_amount" string="Coin" sum="Jami coin"/>
             </list>

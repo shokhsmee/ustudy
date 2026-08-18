@@ -12,6 +12,68 @@ class EduGroupStudent(models.Model):
             group = rec.group_id.name or ''
             rec.display_name = f"{student} – {group}" if group else student
 
+    # ------------------------------------------------------------------
+    # Per-module discounts (chegirma)
+    # ------------------------------------------------------------------
+    def _get_module_discount_amount(self, module):
+        """Discount amount set for this enrollment + module (0 if none)."""
+        self.ensure_one()
+        if not module or not self.id:
+            return 0.0
+        discount = self.env["edu.student.module.discount"].search([
+            ("student_line_id", "=", self.id),
+            ("module_id", "=", module.id),
+        ], limit=1)
+        return discount.discount_amount or 0.0
+
+    def _get_effective_module_price(self, module=None):
+        """Module price this student actually owes: config price minus any
+        discount for (this enrollment, module). Defaults to the current module."""
+        self.ensure_one()
+        config = self.env["edu.config"].get_config()
+        price = config.module_price or 0.0
+        module = module or self.current_module_id
+        return max(0.0, price - self._get_module_discount_amount(module))
+
+    def _get_counted_discount_total(self):
+        """Sum of discounts that count as covered amount in lesson-payment
+        stats: modules from the starting module up to and including the
+        current module. Discounts for modules the student hasn't reached yet
+        don't count as paid lessons."""
+        self.ensure_one()
+        if not self.id:
+            return 0.0
+        discounts = self.env["edu.student.module.discount"].search([
+            ("student_line_id", "=", self.id),
+        ])
+        max_seq = self.current_module_id.sequence if self.current_module_id else None
+        min_seq = self.starting_module_id.sequence if self.starting_module_id else None
+        total = 0.0
+        for disc in discounts:
+            seq = disc.module_id.sequence
+            if max_seq is not None and seq > max_seq:
+                continue
+            if min_seq is not None and seq < min_seq:
+                continue
+            total += disc.discount_amount
+        return total
+
+    def _compute_paid_lessons_count(self):
+        """Override: a module discount counts as covered amount, so a student
+        who paid the discounted (remaining) sum gets the full module's lessons
+        counted as paid."""
+        config = self.env["edu.config"].get_config()
+        per_lesson = (
+            config.module_price / config.lessons_per_module
+            if config.lessons_per_module else 0.0
+        )
+        for rec in self:
+            if per_lesson <= 0:
+                rec.paid_lessons_count = 0
+                continue
+            covered = rec.paid_amount_total + rec._get_counted_discount_total()
+            rec.paid_lessons_count = int(covered // per_lesson)
+
     def increment_lesson_count(self):
         """Override to apply carry-forward overpayment when advancing modules."""
         self.ensure_one()
@@ -38,10 +100,14 @@ class EduGroupStudent(models.Model):
             # Compute how much is already available for the next module:
             # 1. Carry-forward from overpayment of the current module
             # 2. Any explicit prepayments already made for the next module
+            # Both sides are discount-aware: the current module overpays past
+            # its discounted price, and the next module completes at its own
+            # discounted price.
             prepaid_for_next = self._compute_next_module_prepaid(
                 next_module, config.module_price
             )
-            next_already_paid = prepaid_for_next >= config.module_price
+            next_effective_price = self._get_effective_module_price(next_module)
+            next_already_paid = prepaid_for_next >= next_effective_price
 
             prev_module_name = self.current_module_id.name
 
@@ -49,7 +115,7 @@ class EduGroupStudent(models.Model):
                 "current_module_id": next_module.id,
                 "lessons_in_current_module": 1,
                 "current_module_paid": next_already_paid,
-                "current_module_payment_amount": min(prepaid_for_next, config.module_price),
+                "current_module_payment_amount": min(prepaid_for_next, next_effective_price),
             })
 
             carry_msg = ""
@@ -92,7 +158,9 @@ class EduGroupStudent(models.Model):
             ('transaction_type', '=', 'income'),
         ])
         current_total = sum(current_payments.mapped('amount'))
-        overpayment = max(0.0, current_total - module_price)
+        # Overpayment starts past the DISCOUNTED price of the current module.
+        current_effective_price = self._get_effective_module_price(self.current_module_id)
+        overpayment = max(0.0, current_total - current_effective_price)
 
         # Explicit prepayments for the next module on THIS enrollment only
         next_payments = self.env['cc.finance'].search([

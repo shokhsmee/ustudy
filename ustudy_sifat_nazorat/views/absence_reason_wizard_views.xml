@@ -9,6 +9,9 @@
                     <field name="line_id" invisible="1"/>
                     <field name="student_name"/>
                     <field name="reason" widget="radio" options="{'horizontal': true}"/>
+                    <field name="reason_ids" widget="many2many_tags"
+                           options="{'no_create': True}"
+                           placeholder="Sabablarni tanlang (bir nechta bo'lishi mumkin)..."/>
                     <field name="description"
                            placeholder="Kelmaganlik sababi haqida izoh (ixtiyoriy)..."/>
                 </group>

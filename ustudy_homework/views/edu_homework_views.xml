@@ -60,8 +60,10 @@
                                     <field name="state" readonly="1"
                                         widget="badge"
                                         decoration-info="state == 'submitted'"
+                                        decoration-warning="state == 'resubmitted'"
                                         decoration-success="state == 'graded'"
                                         decoration-danger="state == 'failed'"/>
+                                    <field name="attempt_no" string="Urinish" readonly="1" optional="show"/>
 
                                     <field name="comment" readonly="1" string="Student Comment"/>
                                     <field name="mark"/>
@@ -133,21 +135,28 @@
         <field name="model">edu.homework.submission</field>
         <field name="arch" type="xml">
             <!-- Not editable: a row click must open the grading form
-                 (view_edu_homework_submission_form) instead of inline-editing. -->
+                 (view_edu_homework_submission_form) instead of inline-editing.
+                 The Baholash button skips even that — it grades in a dialog. -->
             <list string="Submissions">
                 <field name="homework_id"/>
                 <field name="student_id"/>
-                <field name="user_id"/>
+                <field name="user_id" optional="hide"/>
                 <field name="submit_date"/>
                 <field name="state"
                    widget="badge"
                    decoration-info="state == 'submitted'"
+                   decoration-warning="state == 'resubmitted'"
                    decoration-success="state == 'graded'"
                    decoration-danger="state == 'failed'"/>
+                <field name="attempt_no" string="Urinish" optional="show"/>
 
                 <field name="mark"/>
                 <field name="xp_amount" string="XP" readonly="1" optional="show"/>
                 <field name="teacher_comment"/>
+                <button name="action_open_grading" type="object"
+                        string="Baholash" icon="fa-pencil-square-o"
+                        class="btn-link"
+                        title="Oxirgi topshiriqni ko'rish va baholash"/>
             </list>
         </field>
     </record>
@@ -160,8 +169,11 @@
         <field name="arch" type="xml">
             <form string="Submission">
                 <header>
+                    <button name="action_open_grading" type="object"
+                            string="Tez baholash" class="btn-primary"
+                            icon="fa-pencil-square-o"/>
                     <field name="state" widget="statusbar"
-                           statusbar_visible="not_submitted,submitted,graded,failed"/>
+                           statusbar_visible="not_submitted,submitted,resubmitted,graded,failed"/>
                 </header>
                 <sheet>
                     <group>
@@ -170,6 +182,7 @@
                             <field name="student_id"/>
                             <field name="user_id"/>
                             <field name="submit_date"/>
+                            <field name="attempt_no"/>
                         </group>
                         <group string="Baholash">
                             <field name="mark"/>
@@ -200,7 +213,11 @@
                 <!-- Filters -->
                 <filter name="not_graded"
                         string="Baholanmagan"
-                        domain="[('state','=','submitted'),('homework_id.teacher_id.user_id','=',uid)]"/>
+                        domain="[('state','in',['submitted','resubmitted']),('homework_id.teacher_id.user_id','=',uid)]"/>
+
+                <filter name="resubmitted"
+                        string="Qayta topshirilgan"
+                        domain="[('state','=','resubmitted')]"/>
 
                 <filter name="my_students"
                         string="My Students"

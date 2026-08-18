@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="payment_type_course_sale" model="cc.payment.type">
+            <field name="name">Kurs sotuvi (buyurtma)</field>
+            <field name="code">course_sale</field>
+            <field name="direction">kirim</field>
+            <field name="type_category">student</field>
+            <field name="description">Sotuvlar ilovasidagi buyurtma bo'yicha yaratilgan hisob-faktura (kirim).</field>
+        </record>
+
+    </data>
+</odoo>

@@ -102,27 +102,24 @@ class ResPartner(models.Model):
     )
 
     def _compute_ops_stats(self):
-        # This drives the "Vazifa holati" column on the Talabalar list. It was
-        # 2 search_count()s per row against the heavy edu.student.lesson.report
-        # SQL view (~1.8s each) => an 80-row page did ~290s of DB work and hit
-        # limit_time_real ("cursor already closed"). Two grouped queries for the
-        # whole recordset cost the same ~1.8s each regardless of row count.
-        Report = self.env["edu.student.lesson.report"]
+        # This drives the "Vazifa holati" column on the Talabalar list. The
+        # view is expensive to materialize, so it is scanned exactly ONCE:
+        # a single grouped query with FILTER clauses instead of two
+        # _read_group calls (each of which re-ran the whole view).
         total_map = {}
         passed_map = {}
         if self.ids:
-            for student, count in Report._read_group(
-                [("student_id", "in", self.ids), ("homework_id", "!=", False)],
-                groupby=["student_id"],
-                aggregates=["__count"],
-            ):
-                total_map[student.id] = count
-            for student, count in Report._read_group(
-                [("student_id", "in", self.ids), ("homework_state", "=", "graded")],
-                groupby=["student_id"],
-                aggregates=["__count"],
-            ):
-                passed_map[student.id] = count
+            self.env.cr.execute("""
+                SELECT student_id,
+                       COUNT(*) FILTER (WHERE homework_id IS NOT NULL),
+                       COUNT(*) FILTER (WHERE homework_state = 'graded')
+                FROM edu_student_lesson_report
+                WHERE student_id IN %s
+                GROUP BY student_id
+            """, [tuple(self.ids)])
+            for sid, total, passed in self.env.cr.fetchall():
+                total_map[sid] = total
+                passed_map[sid] = passed
         for partner in self:
             total = total_map.get(partner.id, 0)
             passed = passed_map.get(partner.id, 0)
@@ -175,26 +172,25 @@ class ResPartner(models.Model):
     )
 
     def _compute_attendance_stats(self):
-        # Batched for the same reason as _compute_ops_stats: never run one
-        # search_count per row against the edu.student.lesson.report SQL view.
-        Report = self.env["edu.student.lesson.report"]
-        base = [("timetable_state", "in", ["in_progress", "completed"])]
+        # Same single-scan pattern as _compute_ops_stats: one grouped query
+        # with FILTER clauses, never two passes over the SQL view.
         total_map = {}
         present_map = {}
         if self.ids:
-            for student, count in Report._read_group(
-                [("student_id", "in", self.ids)] + base,
-                groupby=["student_id"],
-                aggregates=["__count"],
-            ):
-                total_map[student.id] = count
-            for student, count in Report._read_group(
-                [("student_id", "in", self.ids)] + base
-                + [("attendance_status", "=", "present")],
-                groupby=["student_id"],
-                aggregates=["__count"],
-            ):
-                present_map[student.id] = count
+            self.env.cr.execute("""
+                SELECT student_id,
+                       COUNT(*) FILTER (
+                           WHERE timetable_state IN ('in_progress', 'completed')),
+                       COUNT(*) FILTER (
+                           WHERE timetable_state IN ('in_progress', 'completed')
+                             AND attendance_status = 'present')
+                FROM edu_student_lesson_report
+                WHERE student_id IN %s
+                GROUP BY student_id
+            """, [tuple(self.ids)])
+            for sid, total, present in self.env.cr.fetchall():
+                total_map[sid] = total
+                present_map[sid] = present
         for partner in self:
             total = total_map.get(partner.id, 0)
             present = present_map.get(partner.id, 0)

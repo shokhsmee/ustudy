@@ -244,7 +244,17 @@ class EduAttendance(models.Model):
                     teacher_finance.action_confirm()
             
             record.write({"state": "confirmed"})
-            
+
+            # Status sync: a confirmed attendance means the lesson happened —
+            # make sure its timetable entry is completed too (the normal
+            # wizard chain completes it first, but confirming straight from
+            # the attendance form must not leave the lesson "in progress").
+            tt = record.timetable_id
+            if tt and tt.state in ("scheduled", "in_progress"):
+                tt.with_context(skip_lesson_task_wizard=True).write(
+                    {"state": "completed"}
+                )
+
             # Post summary message
             message_parts = [_("✅ Attendance Confirmed")]
             message_parts.append(_("Present: %d / %d students") % (record.present_count, record.total_students))
@@ -255,8 +265,12 @@ class EduAttendance(models.Model):
             
             if frozen_students:
                 message_parts.append(_("⚠️ Frozen (payment required): %s") % ", ".join(frozen_students))
-            
-            record.group_id.message_post(body="\n".join(message_parts))
+
+            # same NULL-group guard as action_reset_to_draft: don't let the
+            # chatter note kill the confirmation on broken rows
+            chatter_group = record.group_id or record.timetable_id.group_id
+            if chatter_group:
+                chatter_group.message_post(body="\n".join(message_parts))
         
     def action_reset_to_draft(self):
         """Reset to draft, reversing the lesson-count increments of confirm.
@@ -281,9 +295,17 @@ class EduAttendance(models.Model):
                 )[:1]
                 if student_line:
                     student_line.decrement_lesson_count()
-            record.group_id.message_post(
-                body=_("↩️ Davomat qoralamaga qaytarildi (%s) — o'quvchilarning dars hisoblari qaytarildi.") % (record.attendance_date or "",)
-            )
+            # Old/broken rows may have lost their stored related group_id
+            # (seen in prod 2026-08: attendance rows with group_id NULL while
+            # the timetable's group exists) — message_post on the empty
+            # recordset raised "Expected singleton" and aborted the whole
+            # reset. The chatter note is best-effort; the reset must go
+            # through either way.
+            chatter_group = record.group_id or record.timetable_id.group_id
+            if chatter_group:
+                chatter_group.message_post(
+                    body=_("↩️ Davomat qoralamaga qaytarildi (%s) — o'quvchilarning dars hisoblari qaytarildi.") % (record.attendance_date or "",)
+                )
         self.write({"state": "draft"})
 
     def unlink(self):

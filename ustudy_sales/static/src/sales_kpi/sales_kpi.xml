@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-name="ustudy_sales.SalesKpiDashboard">
+    <div class="o_amocrm_kpi">
+
+        <!-- toolbar: title + period -->
+        <div class="o_akpi_toolbar">
+            <div class="o_akpi_title">
+                <h3>
+                    <i class="fa fa-line-chart me-2"/>
+                    Sotuv KPI Dashboard
+                </h3>
+                <div class="o_akpi_subtitle">
+                    Lidlar: amoCRM (Call-Center + Sotuv voronkalari) |
+                    Sotuvlar va tushum: Sotuvlar ilovasi (tasdiqlangan buyurtmalar)
+                </div>
+            </div>
+            <div class="o_akpi_filters">
+                <input type="date" class="form-control form-control-sm"
+                       t-model="state.dateFrom"/>
+                <span class="mx-1">—</span>
+                <input type="date" class="form-control form-control-sm"
+                       t-model="state.dateTo"/>
+                <button class="btn btn-sm btn-primary ms-2" t-on-click="load">
+                    <i class="fa fa-refresh me-1"/>Yuklash
+                </button>
+            </div>
+        </div>
+
+        <div t-if="state.loading" class="o_akpi_loading">Yuklanmoqda...</div>
+        <div t-if="state.error" class="alert alert-danger m-3" t-esc="state.error"/>
+
+        <t t-if="!state.loading and state.data">
+            <!-- totals strip -->
+            <div class="o_akpi_totals">
+                <div class="o_akpi_total_chip">
+                    <div class="o_akpi_chip_value" t-esc="fmtInt(state.data.totals.leads)"/>
+                    <div class="o_akpi_chip_label">Lidlar</div>
+                </div>
+                <div class="o_akpi_total_chip o_akpi_chip_green">
+                    <div class="o_akpi_chip_value" t-esc="fmtInt(state.data.totals.orders)"/>
+                    <div class="o_akpi_chip_label">Sotuvlar</div>
+                </div>
+                <div class="o_akpi_total_chip">
+                    <div class="o_akpi_chip_value"><t t-esc="state.data.totals.conversion"/>%</div>
+                    <div class="o_akpi_chip_label">Konversiya</div>
+                </div>
+                <div class="o_akpi_total_chip o_akpi_chip_green">
+                    <div class="o_akpi_chip_value" t-esc="fmtMoney(state.data.totals.revenue)"/>
+                    <div class="o_akpi_chip_label">Tushum</div>
+                </div>
+                <div class="o_akpi_total_chip o_akpi_chip_amber">
+                    <div class="o_akpi_chip_value" t-esc="fmtMoney(state.data.totals.paid)"/>
+                    <div class="o_akpi_chip_label">To'langan</div>
+                </div>
+            </div>
+
+            <div t-if="!state.data.managers.length" class="o_akpi_loading">
+                Bu davrda ma'lumot topilmadi.
+            </div>
+
+            <!-- manager cards -->
+            <div class="o_akpi_grid">
+                <div t-foreach="state.data.managers" t-as="manager" t-key="manager.key"
+                     class="o_akpi_card">
+
+                    <div class="o_akpi_card_head">
+                        <div class="o_akpi_avatar" t-esc="(manager.name || '?')[0]"/>
+                        <div class="o_akpi_card_name">
+                            <div class="o_akpi_manager" t-esc="manager.name"/>
+                            <div class="o_akpi_bonus">
+                                To'langan: <b t-esc="fmtMoney(manager.paid)"/>
+                            </div>
+                        </div>
+                        <div t-attf-class="o_akpi_badge {{ manager.conversion >= 7 ? 'o_akpi_badge_green' : (manager.conversion >= 4 ? 'o_akpi_badge_amber' : 'o_akpi_badge_red') }}">
+                            <t t-esc="manager.conversion"/>%
+                            <div class="o_akpi_badge_label">Konv.</div>
+                        </div>
+                    </div>
+
+                    <div class="o_akpi_stats">
+                        <div class="o_akpi_stat">
+                            <div class="o_akpi_stat_value" t-esc="fmtInt(manager.leads)"/>
+                            <div class="o_akpi_stat_label">Lidlar</div>
+                        </div>
+                        <div class="o_akpi_stat">
+                            <div class="o_akpi_stat_value o_akpi_green" t-esc="fmtInt(manager.orders)"/>
+                            <div class="o_akpi_stat_label">Sotuvlar</div>
+                        </div>
+                        <div class="o_akpi_stat">
+                            <div class="o_akpi_stat_value"><t t-esc="manager.conversion"/>%</div>
+                            <div class="o_akpi_stat_label">Konversiya</div>
+                        </div>
+                        <div class="o_akpi_stat">
+                            <div class="o_akpi_stat_value o_akpi_green" t-esc="fmtMoney(manager.revenue)"/>
+                            <div class="o_akpi_stat_label">Tushum</div>
+                        </div>
+                    </div>
+
+                    <!-- mini funnel: lead → sale -->
+                    <div class="o_akpi_funnel">
+                        <div class="o_akpi_stage">
+                            <div class="o_akpi_stage_top">
+                                <span class="o_akpi_stage_label">Lidlar</span>
+                                <span class="o_akpi_stage_count" t-esc="fmtInt(manager.leads)"/>
+                            </div>
+                            <div class="o_akpi_bar_track">
+                                <div class="o_akpi_bar"
+                                     t-attf-style="width: {{ manager.leads ? '100%' : '0%' }}; background: #74b9ff;"/>
+                            </div>
+                        </div>
+                        <div class="o_akpi_stage">
+                            <div class="o_akpi_stage_top">
+                                <span class="o_akpi_stage_label">Sotuvlar</span>
+                                <span class="o_akpi_stage_count">
+                                    <t t-esc="fmtInt(manager.orders)"/>
+                                    <t t-if="manager.revenue"> · <t t-esc="fmtMoney(manager.revenue)"/></t>
+                                </span>
+                            </div>
+                            <div class="o_akpi_bar_track">
+                                <div class="o_akpi_bar o_akpi_bar_won"
+                                     t-attf-style="width: {{ convWidth(manager) }};"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- courses sold -->
+                    <div t-if="manager.courses.length" class="o_akpi_courses">
+                        <div class="o_akpi_courses_title">Sotilgan kurslar</div>
+                        <div class="o_akpi_course_chips">
+                            <span t-foreach="manager.courses" t-as="course" t-key="course_index"
+                                  class="o_akpi_course_chip">
+                                <t t-esc="course.name"/> × <t t-esc="course.count"/>
+                                <t t-if="course.amount"> — <t t-esc="fmtMoney(course.amount)"/></t>
+                            </span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </t>
+    </div>
+</t>
+
+</templates>

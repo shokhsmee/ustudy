@@ -42,7 +42,7 @@
                             </div>
                             <button class="btn btn-sm o_rb_add"
                                     t-on-click="() => props.onAdd(room.id, day)"
-                                    title="Dars qo'shish">
+                                    title="Xonani band qilish">
                                 <i class="fa fa-plus"/>
                             </button>
                         </td>

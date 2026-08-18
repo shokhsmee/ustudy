@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Education Finance Management',
-    'version': '19.0.1.3.0',
+    'version': '19.0.1.3.1',
     'category': 'Accounting',
     'summary': 'Manage income and expenses for education center',
     'author' : 'Shohjahon Obruyev',

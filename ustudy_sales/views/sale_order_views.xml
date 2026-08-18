@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================= FORM ================= -->
+    <record id="view_edu_sale_order_form" model="ir.ui.view">
+        <field name="name">edu.sale.order.form</field>
+        <field name="model">edu.sale.order</field>
+        <field name="arch" type="xml">
+            <form string="Sotuv buyurtmasi">
+                <header>
+                    <button name="action_confirm" type="object"
+                            string="Tasdiqlash" class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_create_invoice" type="object"
+                            string="Hisob-faktura yaratish" class="btn-primary"
+                            invisible="state != 'confirmed'"/>
+                    <button name="action_cancel" type="object"
+                            string="Bekor qilish"
+                            confirm="Buyurtma bekor qilinsinmi?"
+                            invisible="state == 'cancelled'"/>
+                    <button name="action_reset_to_draft" type="object"
+                            string="Qoralamaga qaytarish"
+                            invisible="state != 'cancelled'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,confirmed"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_finance" type="object"
+                                class="oe_stat_button" icon="fa-money"
+                                invisible="finance_count == 0">
+                            <field name="finance_count" widget="statinfo"
+                                   string="To'lovlar"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="partner_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="partner_phone"/>
+                            <field name="sale_type"/>
+                            <field name="group_id"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group>
+                            <field name="date_order"/>
+                            <field name="user_id"
+                                   widget="many2one_avatar_user"/>
+                            <field name="payment_state" widget="badge"
+                                   decoration-danger="payment_state == 'not_paid'"
+                                   decoration-warning="payment_state == 'partial'"
+                                   decoration-success="payment_state in ('paid', 'overpaid')"/>
+                            <field name="company_id" invisible="1"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Buyurtma qatorlari" name="order_lines">
+                            <field name="order_line"
+                                   readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="product_id"/>
+                                    <field name="name" optional="hide"/>
+                                    <field name="quantity"/>
+                                    <field name="price_unit"
+                                           widget="monetary"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                    <field name="discount" optional="show"/>
+                                    <field name="currency_id"
+                                           column_invisible="1"/>
+                                    <field name="price_subtotal"
+                                           widget="monetary"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </list>
+                            </field>
+                            <div class="row mt-2">
+                                <div class="col-lg-6 col-md-12">
+                                    <field name="note"
+                                           placeholder="Izoh..."
+                                           class="mb-3"/>
+                                    <group class="mt-2">
+                                        <field name="paid_amount"
+                                               widget="monetary"
+                                               options="{'currency_field': 'currency_id'}"
+                                               readonly="1"
+                                               decoration-success="paid_amount &gt; 0"/>
+                                        <field name="pending_amount"
+                                               widget="monetary"
+                                               options="{'currency_field': 'currency_id'}"
+                                               readonly="1"
+                                               invisible="pending_amount == 0"
+                                               decoration-warning="pending_amount &gt; 0"/>
+                                        <field name="amount_due"
+                                               widget="monetary"
+                                               options="{'currency_field': 'currency_id'}"
+                                               readonly="1"
+                                               decoration-danger="amount_due &gt; 0"/>
+                                        <field name="overpaid_amount"
+                                               widget="monetary"
+                                               options="{'currency_field': 'currency_id'}"
+                                               readonly="1"
+                                               invisible="overpaid_amount == 0"
+                                               decoration-success="overpaid_amount &gt; 0"/>
+                                    </group>
+                                </div>
+                                <div class="col-lg-6 col-md-12">
+                                    <group class="oe_subtotal_footer oe_right">
+                                        <field name="amount_gross"
+                                               widget="monetary"
+                                               options="{'currency_field': 'currency_id'}"/>
+                                        <field name="discount_total"
+                                               widget="monetary"
+                                               options="{'currency_field': 'currency_id'}"
+                                               invisible="discount_total == 0"/>
+                                        <div class="oe_subtotal_footer_separator oe_inline o_td_label">
+                                            <label for="amount_total"/>
+                                        </div>
+                                        <field name="amount_total" nolabel="1"
+                                               class="oe_subtotal_footer_separator"
+                                               widget="monetary"
+                                               options="{'currency_field': 'currency_id'}"/>
+                                    </group>
+                                </div>
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ================= LIST ================= -->
+    <record id="view_edu_sale_order_list" model="ir.ui.view">
+        <field name="name">edu.sale.order.list</field>
+        <field name="model">edu.sale.order</field>
+        <field name="arch" type="xml">
+            <list string="Sotuv buyurtmalari" sample="1">
+                <field name="name" decoration-bf="1"/>
+                <field name="date_order" widget="date"/>
+                <field name="partner_id"/>
+                <field name="user_id" widget="many2one_avatar_user"
+                       optional="show"/>
+                <field name="group_id" optional="hide"/>
+                <field name="sale_type" optional="hide"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="amount_total" widget="monetary"
+                       options="{'currency_field': 'currency_id'}"
+                       sum="Jami"/>
+                <field name="paid_amount" widget="monetary"
+                       options="{'currency_field': 'currency_id'}"
+                       sum="Jami" optional="show"/>
+                <field name="pending_amount" widget="monetary"
+                       options="{'currency_field': 'currency_id'}"
+                       sum="Jami" optional="hide"/>
+                <field name="overpaid_amount" column_invisible="1"/>
+                <field name="amount_due_display" string="Qarzdorlik"
+                       widget="monetary"
+                       options="{'currency_field': 'currency_id'}"
+                       optional="show"
+                       decoration-danger="overpaid_amount == 0 and amount_due_display &gt; 0"
+                       decoration-success="overpaid_amount &gt; 0"/>
+                <field name="payment_state" widget="badge"
+                       decoration-danger="payment_state == 'not_paid'"
+                       decoration-warning="payment_state == 'partial'"
+                       decoration-success="payment_state in ('paid', 'overpaid')"
+                       optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'confirmed'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ================= SEARCH ================= -->
+    <record id="view_edu_sale_order_search" model="ir.ui.view">
+        <field name="name">edu.sale.order.search</field>
+        <field name="model">edu.sale.order</field>
+        <field name="arch" type="xml">
+            <search string="Sotuv buyurtmalari">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="user_id"/>
+                <field name="group_id"/>
+                <filter string="Qoralama" name="draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="Tasdiqlangan" name="confirmed"
+                        domain="[('state', '=', 'confirmed')]"/>
+                <separator/>
+                <filter string="Qarzdor" name="has_due"
+                        domain="[('amount_due', '&gt;', 0)]"/>
+                <filter string="100% to'lov" name="fully_paid"
+                        domain="[('payment_state', 'in', ('paid', 'overpaid'))]"/>
+                <filter string="Mening buyurtmalarim" name="my_orders"
+                        domain="[('user_id', '=', uid)]"/>
+                <separator/>
+                <filter string="Sotuvchi" name="group_user"
+                        context="{'group_by': 'user_id'}"/>
+                <filter string="Mijoz" name="group_partner"
+                        context="{'group_by': 'partner_id'}"/>
+                <filter string="Holat" name="group_state"
+                        context="{'group_by': 'state'}"/>
+                <filter string="To'lov holati" name="group_payment_state"
+                        context="{'group_by': 'payment_state'}"/>
+                <filter string="Sana" name="group_date"
+                        context="{'group_by': 'date_order:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ================= ACTIONS ================= -->
+    <record id="action_edu_sale_order" model="ir.actions.act_window">
+        <field name="name">Buyurtmalar</field>
+        <field name="res_model">edu.sale.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_edu_sale_order_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Birinchi buyurtmani yarating
+            </p>
+            <p>
+                Kursni tanlang, chegirmani kiriting va buyurtmani tasdiqlang.
+                "Hisob-faktura yaratish" tugmasi to'lovni kassaga yuboradi.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_ustudy_sales_products" model="ir.actions.act_window">
+        <field name="name">Kurslar</field>
+        <field name="res_model">product.template</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="context">{'default_type': 'service', 'default_sale_ok': True}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Yangi kurs (mahsulot) yarating
+            </p>
+            <p>
+                Bu yerda yaratilgan kurslar buyurtma qatorlarida tanlanadi.
+            </p>
+        </field>
+    </record>
+
+</odoo>

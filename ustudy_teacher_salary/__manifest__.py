@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': "Ustoz Oyligi (Teacher Salary)",
-    'version': '19.0.1.7.1',
+    'version': '19.0.1.7.3',
     'summary': "Ustozlar oyligini davomat asosida hisoblash",
     'description': """
 Ustoz oyligi hisoblanishi

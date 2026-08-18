@@ -195,6 +195,12 @@ $dj-red: #e8443a;
             min-width: 170px;
             padding: 3px;
             background: #fff;
+            // empty area is clickable: it opens the "book this room" wizard
+            cursor: cell;
+
+            &:hover {
+                background: #f2f7ff;
+            }
         }
     }
 
@@ -230,6 +236,17 @@ $dj-red: #e8443a;
             grid-template-columns: 1fr 34px 34px;
             font-size: 11px;
 
+            // module row: text values ("12 ta modul" / "9-modul, 7-dars")
+            // need their natural width instead of the 34px number columns
+            &.o_dj_card_modul {
+                grid-template-columns: 1fr auto auto;
+
+                span:not(.o_dj_card_key) {
+                    padding-left: 5px;
+                    white-space: nowrap;
+                }
+            }
+
             .o_dj_card_key {
                 color: rgba(0, 0, 0, 0.6);
             }
@@ -264,5 +281,18 @@ $dj-red: #e8443a;
         .o_dj_card_key {
             color: rgba(255, 255, 255, 0.85) !important;
         }
+    }
+
+    // non-lesson bookings (majlis/konsultatsiya/mehmon): visibly not a class
+    .o_dj_card_booking {
+        background: repeating-linear-gradient(
+            45deg,
+            #e8eaf6,
+            #e8eaf6 8px,
+            #dfe2f1 8px,
+            #dfe2f1 16px
+        );
+        color: #283593;
+        border: 1px dashed #5c6bc0;
     }
 }

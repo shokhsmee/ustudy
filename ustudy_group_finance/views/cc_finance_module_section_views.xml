@@ -69,6 +69,12 @@
                                widget="monetary"
                                options="{'currency_field': 'currency_id'}"
                                readonly="1"/>
+                        <field name="module_discount"
+                               string="Chegirma"
+                               widget="monetary"
+                               options="{'currency_field': 'currency_id'}"
+                               readonly="1"
+                               invisible="module_discount == 0"/>
                         <field name="module_remaining"
                                widget="monetary"
                                options="{'currency_field': 'currency_id'}"

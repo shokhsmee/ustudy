@@ -27,12 +27,20 @@
                         </group>
 
                         <group string="Payment Summary">
+                            <field name="module_price" string="Modul narxi"
+                                   widget="monetary" readonly="1"
+                                   invisible="discount_amount == 0"/>
+                            <field name="discount_amount" string="Chegirma"
+                                   widget="monetary" readonly="1"
+                                   invisible="discount_amount == 0"/>
                             <label for="current_paid" string="Payment Progress"/>
                             <div class="o_row">
                                 <field name="current_paid" widget="monetary" readonly="1"/>
                                 <span class="mx-2">/</span>
-                                <field name="module_price" widget="monetary" readonly="1"/>
+                                <field name="effective_price" widget="monetary" readonly="1"/>
                             </div>
+                            <field name="remaining_amount" string="Qolgan summa"
+                                   widget="monetary" readonly="1"/>
                         </group>
                     </group>
 

@@ -11,6 +11,9 @@
                 <field name="absence_reason" optional="show"
                        decoration-success="absence_reason == 'sababli'"
                        decoration-danger="absence_reason == 'sababsiz'"/>
+                <field name="absence_reason_ids" widget="many2many_tags"
+                       optional="show" options="{'no_create': True}"
+                       readonly="status != 'absent'"/>
                 <button name="action_open_reason_wizard" type="object"
                         icon="fa-medkit" title="Sababli/Sababsiz belgilash"
                         invisible="status != 'absent'"/>

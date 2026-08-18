@@ -3,13 +3,17 @@ from math import ceil
 
 from odoo import api, fields, models
 
-# 30-minute board grid from 08:00 to 20:00. A lesson card sits on the row that
-# contains its local start time and spans (rowspan) every 30-min row up to its
-# end time, so a 10:30-12:00 lesson renders exactly over 10:30-12:00.
-DAY_START_MIN = 8 * 60
-DAY_END_MIN = 20 * 60
+from .booking import PURPOSE_LABELS
+
+# 30-minute board grid. The window is FIXED: every day shows 08:00-22:00
+# (user request 2026-08-09, replacing the old dynamic earliest-to-latest
+# window) and only stretches beyond that when a lesson actually falls outside
+# it, so nothing is ever clipped. A lesson card sits on the row that contains
+# its local start time and spans (rowspan) every 30-min row up to its end
+# time, so a 10:30-12:00 lesson renders exactly over 10:30-12:00.
+FIXED_START_MIN = 8 * 60            # 08:00
+FIXED_END_MIN = 22 * 60             # 22:00
 SLOT_MINUTES = 30
-SLOT_COUNT = (DAY_END_MIN - DAY_START_MIN) // SLOT_MINUTES
 
 # Mon/Wed/Fri = toq (odd) block, Tue/Thu/Sat = juft (even) block. Sunday is
 # not part of the board.
@@ -30,28 +34,48 @@ class DarsJadvaliBoard(models.AbstractModel):
     # helpers
     # ------------------------------------------------------------------
     @api.model
-    def _slot_label(self, idx):
-        start = DAY_START_MIN + idx * SLOT_MINUTES
+    def _slot_label(self, idx, day_start_min):
+        start = day_start_min + idx * SLOT_MINUTES
         end = start + SLOT_MINUTES
         return "%02d:%02d - %02d:%02d" % (start // 60, start % 60, end // 60, end % 60)
 
     @api.model
-    def _slot_index(self, local_dt):
+    def _slot_index(self, local_dt, day_start_min, day_end_min):
         minutes = local_dt.hour * 60 + local_dt.minute
-        if DAY_START_MIN <= minutes < DAY_END_MIN:
-            return (minutes - DAY_START_MIN) // SLOT_MINUTES
+        if day_start_min <= minutes < day_end_min:
+            return (minutes - day_start_min) // SLOT_MINUTES
         return None
 
     @api.model
-    def _slot_span(self, s_idx, start_local, end_local):
+    def _slot_span(self, s_idx, start_local, end_local, day_start_min, day_end_min, slot_count):
         """How many 30-min rows the lesson covers from its start row (>= 1)."""
         if not end_local or end_local <= start_local:
             return 1
         end_min = end_local.hour * 60 + end_local.minute
         if end_local.date() != start_local.date():
-            end_min = DAY_END_MIN
-        end_idx = ceil((min(end_min, DAY_END_MIN) - DAY_START_MIN) / SLOT_MINUTES)
-        return max(1, min(end_idx, SLOT_COUNT) - s_idx)
+            end_min = day_end_min
+        end_idx = ceil((min(end_min, day_end_min) - day_start_min) / SLOT_MINUTES)
+        return max(1, min(end_idx, slot_count) - s_idx)
+
+    @api.model
+    def _day_window(self, items):
+        """Fixed grid window 08:00-22:00, stretched (floored/ceiled to 30 min)
+        only when a lesson starts before 08:00 or ends after 22:00 so no card
+        is ever hidden. items = [(entry, local_start, local_end, parity), ...]"""
+        if not items:
+            return FIXED_START_MIN, FIXED_END_MIN
+        start_min = min(l.hour * 60 + l.minute for _, l, _, _ in items)
+        day_start = min(FIXED_START_MIN, (start_min // SLOT_MINUTES) * SLOT_MINUTES)
+        end_candidates = []
+        for _, local, local_end, _ in items:
+            m = local.hour * 60 + local.minute + SLOT_MINUTES  # at least one slot
+            if local_end and local_end > local and local_end.date() == local.date():
+                m = max(m, local_end.hour * 60 + local_end.minute)
+            # overnight/broken end datetimes don't stretch the grid; the card
+            # span is clamped to the window end instead (see _slot_span)
+            end_candidates.append(m)
+        day_end = ceil(max(end_candidates) / SLOT_MINUTES) * SLOT_MINUTES
+        return day_start, max(FIXED_END_MIN, day_end, day_start + SLOT_MINUTES)
 
     @api.model
     def _group_snapshot(self, group):
@@ -79,6 +103,16 @@ class DarsJadvaliBoard(models.AbstractModel):
             if last_done
             else max(group.start_lesson_number or 1, 1) - 1
         )
+        # Card shows modules, not raw lesson counts (user request 2026-08-17):
+        # Reja "12 ta modul" = total lessons / lessons_per_module, Fakt
+        # "9-modul, 7-dars" = where lesson No. `fakt` falls in that grid.
+        lpm = self.env["edu.config"].get_config().lessons_per_module or 12
+        module_reja = "%d ta modul" % ceil(reja / lpm) if reja else "0 ta modul"
+        if fakt > 0:
+            module_fakt = "%d-modul, %d-dars" % (
+                (fakt - 1) // lpm + 1, (fakt - 1) % lpm + 1)
+        else:
+            module_fakt = "—"
         lines = group.student_line_ids
         students = len(lines.filtered(lambda l: l.state == "active"))
         # "Probniy" (trial students) has no dedicated state on
@@ -91,15 +125,14 @@ class DarsJadvaliBoard(models.AbstractModel):
             # sudo: non-HR users may not read hr.employee directly (the public
             # profile lacks custom fields like pbx_extension/finance_* that
             # prefetch pulls in); the board only shows the name.
-            # card title in "Kurs - Guruh" format, e.g. "Graphic Design 12 Oy - U14"
-            "course": (
-                f"{group.course_id.name} - {group.name}"
-                if group.course_id and group.course_id.name != group.name
-                else group.name
-            ),
+            # card title = group name only (course name/duration dropped by
+            # user request 2026-07-29)
+            "course": group.name,
             "teacher": group.teacher_id.sudo().name or "",
             "lessons_reja": reja,
             "lessons_fakt": fakt,
+            "module_reja": module_reja,
+            "module_fakt": module_fakt,
             "probniy": probniy,
             "students": students,
         }
@@ -158,33 +191,76 @@ class DarsJadvaliBoard(models.AbstractModel):
         room_infos = [{"id": r.id, "name": r.name, "capacity": r.capacity} for r in rooms]
         room_ids = [r.id for r in rooms]
 
-        # ---- bucket entries: (week_monday, parity, slot_idx, room) -> groups
-        snapshots = {}  # group_id -> snapshot (computed once)
-        buckets = {}    # (week, parity, slot, room) -> {group_id: {...}}
-        week_keys = set()
-
+        # ---- pre-pass: local times + parity/room filters, then the dynamic
+        # grid window is derived from the surviving lessons (NOT the slot
+        # filter, so slot indexes stay stable between requests)
+        items = []
         for entry in entries:
             local = fields.Datetime.context_timestamp(entry, entry.start_datetime)
             p = PARITY_BY_WEEKDAY.get(local.weekday())
             if not p or (parity and p != parity):
                 continue
-            s_idx = self._slot_index(local)
-            if s_idx is None:
+            if entry.room_id.id not in room_ids:
                 continue
             local_end = (
                 fields.Datetime.context_timestamp(entry, entry.end_datetime)
                 if entry.end_datetime
                 else None
             )
-            span = self._slot_span(s_idx, local, local_end)
+            items.append((entry, local, local_end, p))
+
+        # Non-lesson room bookings (majlis/konsultatsiya/mehmon) share the
+        # grid. They carry no group/teacher, so those filters hide them.
+        booking_items = []
+        if not (group_id or teacher_id):
+            utc_from = self.env["edu.group"]._make_utc_datetime(date_from, 0.0)
+            utc_to = self.env["edu.group"]._make_utc_datetime(
+                date_to + timedelta(days=1), 0.0
+            )
+            bookings = self.env["dars.jadvali.booking"].search(
+                [
+                    ("start_datetime", ">=", utc_from),
+                    ("start_datetime", "<", utc_to),
+                ],
+                order="start_datetime asc",
+            )
+            for bk in bookings:
+                local = fields.Datetime.context_timestamp(bk, bk.start_datetime)
+                p = PARITY_BY_WEEKDAY.get(local.weekday())
+                if not p or (parity and p != parity):
+                    continue
+                if bk.room_id.id not in room_ids:
+                    continue
+                local_end = (
+                    fields.Datetime.context_timestamp(bk, bk.end_datetime)
+                    if bk.end_datetime
+                    else None
+                )
+                booking_items.append((bk, local, local_end, p))
+
+        day_start_min, day_end_min = self._day_window(items + booking_items)
+        slot_count = (day_end_min - day_start_min) // SLOT_MINUTES
+        if slot is not False and not (0 <= slot < slot_count):
+            slot = False
+
+        # ---- bucket entries: (week_monday, parity, slot_idx, room) -> groups
+        snapshots = {}  # group_id -> snapshot (computed once)
+        buckets = {}    # (week, parity, slot, room) -> {group_id: {...}}
+        week_keys = set()
+
+        for entry, local, local_end, p in items:
+            s_idx = self._slot_index(local, day_start_min, day_end_min)
+            if s_idx is None:
+                continue
+            span = self._slot_span(
+                s_idx, local, local_end, day_start_min, day_end_min, slot_count
+            )
             if slot is not False:
                 # time filter: keep lessons covering the picked half-hour and
                 # render them on that single row (no rowspan to clip).
                 if not (s_idx <= slot < s_idx + span):
                     continue
                 s_idx, span = slot, 1
-            if entry.room_id.id not in room_ids:
-                continue
 
             monday = local.date() - timedelta(days=local.weekday())
             week_keys.add(monday)
@@ -208,9 +284,43 @@ class DarsJadvaliBoard(models.AbstractModel):
             card["timetable_ids"].append(entry.id)
             card["dates"].append(local.strftime("%d.%m %H:%M"))
 
+        for bk, local, local_end, p in booking_items:
+            s_idx = self._slot_index(local, day_start_min, day_end_min)
+            if s_idx is None:
+                continue
+            span = self._slot_span(
+                s_idx, local, local_end, day_start_min, day_end_min, slot_count
+            )
+            if slot is not False:
+                if not (s_idx <= slot < s_idx + span):
+                    continue
+                s_idx, span = slot, 1
+            monday = local.date() - timedelta(days=local.weekday())
+            week_keys.add(monday)
+            key = (monday, p, s_idx, bk.room_id.id)
+            cell = buckets.setdefault(key, {})
+            cell["b%d" % bk.id] = {
+                "kind": "booking",
+                "booking_id": bk.id,
+                # unique per-cell key: shares the card dict shape (t-key,
+                # counted_groups) without ever colliding with a group id
+                "group_id": "b%d" % bk.id,
+                "purpose_label": PURPOSE_LABELS.get(bk.purpose, bk.purpose),
+                "note": bk.note or "",
+                "user": bk.user_id.sudo().name or "",
+                "time": "%s - %s" % (
+                    local.strftime("%H:%M"),
+                    local_end.strftime("%H:%M") if local_end else "",
+                ),
+                "color": "booking",
+                "span": span,
+                "timetable_ids": [],
+                "dates": [local.strftime("%d.%m %H:%M")],
+            }
+
         # ---- assemble weeks -> blocks -> slot rows
         parities = [parity] if parity else ["toq", "juft"]
-        slot_indexes = [slot] if slot is not False else list(range(SLOT_COUNT))
+        slot_indexes = [slot] if slot is not False else list(range(slot_count))
 
         weeks = []
         for monday in sorted(week_keys) or [date_from - timedelta(days=date_from.weekday())]:
@@ -234,6 +344,9 @@ class DarsJadvaliBoard(models.AbstractModel):
                     for rid in room_ids:
                         cards = list(buckets.get((monday, p, s_idx, rid), {}).values())
                         for card in cards:
+                            if card.get("kind") == "booking":
+                                # preset color; no Reja/Fakt numbers to total
+                                continue
                             card["color"] = self._seat_color(card["students"], card["capacity"])
                             t = totals[rid]
                             if card["group_id"] not in counted_groups[rid]:
@@ -269,7 +382,13 @@ class DarsJadvaliBoard(models.AbstractModel):
                                 open_cells[rid] = cell
                                 open_until[rid] = end
                             cells[str(rid)] = cell
-                    rows.append({"slot": self._slot_label(s_idx), "cells": cells})
+                    rows.append({
+                        "slot": self._slot_label(s_idx, day_start_min),
+                        # slot start in minutes-from-midnight: the cell-click
+                        # "add lesson" wizard prefills its start time from it
+                        "start_min": day_start_min + s_idx * SLOT_MINUTES,
+                        "cells": cells,
+                    })
 
                 block_total = {
                     k: sum(t[k] for t in totals.values())
@@ -295,7 +414,7 @@ class DarsJadvaliBoard(models.AbstractModel):
             "date_from": fields.Date.to_string(date_from),
             "date_to": fields.Date.to_string(date_to),
             "rooms": room_infos,
-            "slots": [self._slot_label(i) for i in range(SLOT_COUNT)],
+            "slots": [self._slot_label(i, day_start_min) for i in range(slot_count)],
             "weeks": weeks,
             "filter_options": self._filter_options(),
         }
@@ -321,6 +440,20 @@ class DarsJadvaliBoard(models.AbstractModel):
     # ------------------------------------------------------------------
     @api.model
     def open_lesson_wizard(self, group_id, timetable_ids=None):
+        # Booking cards carry key "b<id>" instead of a group id. The new JS
+        # routes them elsewhere, but a browser still running pre-1.4.0 assets
+        # lands here with 'b1' — open the booking form instead of crashing.
+        if isinstance(group_id, str) and group_id.startswith("b"):
+            booking = self.env["dars.jadvali.booking"].browse(int(group_id[1:]))
+            return {
+                "type": "ir.actions.act_window",
+                "name": booking.name,
+                "res_model": "dars.jadvali.booking",
+                "res_id": booking.id,
+                "view_mode": "form",
+                "views": [(False, "form")],
+                "target": "new",
+            }
         group = self.env["edu.group"].browse(int(group_id))
         snap = self._group_snapshot(group)
         wizard = self.env["dars.jadvali.lesson.wizard"].create({

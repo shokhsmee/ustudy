@@ -45,18 +45,20 @@ class EduStudentLessonReport(models.Model):
 
     homework_state = fields.Selection(
         [
-            ("not_submitted", "Not Submitted"),
-            ("submitted", "Submitted"),
-            ("graded", "Passed"),
-            ("failed", "Failed"),
+            ("not_submitted", "Topshirmagan"),
+            ("submitted", "Topshirgan"),
+            ("resubmitted", "Qayta topshirgan"),
+            ("graded", "O'tgan"),
+            ("failed", "Yiqilgan"),
         ],
-        string="Homework Status",
+        string="Topshirish holati",
         readonly=True,
     )
 
     # Simplified three-way result used by the timetable Vazifalar roster:
     # passed / not passed / failed. "not_passed" covers both the students who
-    # never submitted and those who submitted but aren't graded yet.
+    # never submitted and those who submitted but aren't graded yet — the
+    # homework_state column above tells those two apart (and flags retries).
     result_state = fields.Selection(
         [
             ("passed", "O'tdi"),
@@ -66,6 +68,14 @@ class EduStudentLessonReport(models.Model):
         string="Natija",
         readonly=True,
     )
+
+    # The student's LATEST attempt at this lesson's homework — the row the
+    # roster displays and the one the grading dialog / inline Ball edit write
+    # to. Empty for students who never submitted.
+    submission_id = fields.Many2one(
+        "edu.homework.submission", string="Oxirgi topshiriq", readonly=True)
+    submit_date = fields.Datetime(string="Topshirilgan vaqt", readonly=True)
+    attempt_no = fields.Integer(string="Urinish", readonly=True)
 
     mark = fields.Float(string="Mark", readonly=True)
     student_comment = fields.Text(string="Student Comment", readonly=True)
@@ -77,10 +87,29 @@ class EduStudentLessonReport(models.Model):
         # on or after their enrollment_date in the group. Students enrolled at
         # the group's start (enrollment_date NULL or before any timetable) see
         # everything by default.
+        # Supporting indexes for the view's joins/LATERALs. Without them the
+        # per-row LATERAL lookups seq-scan (submissions had no homework_id
+        # index, enrollments no student_id index) and every query against the
+        # view costs seconds.
+        self.env.cr.execute("""
+            CREATE INDEX IF NOT EXISTS edu_group_student_student_group_idx
+                ON edu_group_student (student_id, group_id);
+            CREATE INDEX IF NOT EXISTS edu_homework_submission_hw_student_idx
+                ON edu_homework_submission (homework_id, student_id);
+            CREATE INDEX IF NOT EXISTS edu_homework_slide_published_idx
+                ON edu_homework (slide_id) WHERE is_published = true;
+        """)
+        # id is a deterministic expression, NOT row_number(): a window
+        # function over the whole view blocks predicate pushdown, so even
+        # "WHERE student_id IN (...)" had to materialize all ~22k rows.
+        # With a plain expression Postgres pushes student/timetable filters
+        # into the joins and only computes the requested rows. Unique since
+        # student ids stay far below 1e6; stable across queries (row_number
+        # wasn't), which the inline-grading write() also benefits from.
         self.env.cr.execute(f"""
             CREATE OR REPLACE VIEW {self._table} AS (
                 SELECT
-                    row_number() OVER (ORDER BY tt.start_datetime ASC, tt.id ASC, gs.student_id) AS id,
+                    (tt.id::bigint * 1000000 + gs.student_id) AS id,
                     gs.student_id AS student_id,
                     tt.id AS timetable_id,
                     tt.name AS timetable_name,
@@ -98,6 +127,9 @@ class EduStudentLessonReport(models.Model):
                         WHEN sub.state = 'failed' THEN 'failed'
                         ELSE 'not_passed'
                     END AS result_state,
+                    sub.id AS submission_id,
+                    sub.submit_date AS submit_date,
+                    COALESCE(sub.attempt_no, 0) AS attempt_no,
                     sub.mark AS mark,
                     sub.comment AS student_comment,
                     sub.teacher_comment AS teacher_comment
@@ -141,22 +173,17 @@ class EduStudentLessonReport(models.Model):
                              h.id
                     LIMIT 1
                 ) hw ON true
-                -- One row per student: pick the most relevant submission
-                -- (passed first, then failed, then newest) so resubmissions
-                -- don't duplicate the student's roster row.
+                -- One row per student: the student's LATEST attempt. Ordering
+                -- by state (passed first) would pin the roster to an older
+                -- verdict and hide a retry — a student who resubmits after
+                -- being failed must show up as 'resubmitted' (needs grading),
+                -- not as the previous "Yiqildi".
                 LEFT JOIN LATERAL (
-                    SELECT s.state, s.mark, s.comment, s.teacher_comment
+                    SELECT s.id, s.state, s.mark, s.comment, s.teacher_comment,
+                           s.submit_date, s.attempt_no
                     FROM edu_homework_submission s
                     WHERE s.homework_id = hw.id AND s.student_id = gs.student_id
-                    ORDER BY
-                        CASE s.state
-                            WHEN 'graded' THEN 0
-                            WHEN 'failed' THEN 1
-                            WHEN 'submitted' THEN 2
-                            ELSE 3
-                        END,
-                        s.submit_date DESC NULLS LAST,
-                        s.id DESC
+                    ORDER BY s.submit_date DESC NULLS LAST, s.id DESC
                     LIMIT 1
                 ) sub ON true
             )
@@ -180,46 +207,14 @@ class EduStudentLessonReport(models.Model):
         if not vals:
             return True
         Submission = self.env["edu.homework.submission"]
-        # same relevance order as the view's LATERAL join:
-        # graded, failed, submitted, rest — then newest submission first
-        state_order = {"graded": 0, "failed": 1, "submitted": 2}
 
+        # same order as the view's LATERAL join: the student's newest attempt
         def sub_sort_key(s):
             ts = s.submit_date.timestamp() if s.submit_date else None
-            return (
-                state_order.get(s.state, 3),
-                -ts if ts is not None else float("inf"),
-                -s.id,
-            )
+            return (-ts if ts is not None else float("inf"), -s.id)
 
         for row in self:
-            homework = row.homework_id
-            if not homework:
-                if not row.slide_id:
-                    raise UserError(_(
-                        "%s: bu dars uchun \"Dars/Slayd\" tanlanmagan — ball/izoh qo'yib bo'lmaydi.",
-                        row.student_id.display_name,
-                    ))
-                # Grading a lesson whose slide has no homework yet: attach one
-                # automatically (named after the slide) so the ball has a
-                # submission to live on. edu.homework.create() fills channel /
-                # pass_mark defaults and re-syncs timetable homework flags.
-                # Search first: row.homework_id is stale within this batch, and
-                # grading several students at once must not duplicate it. Same
-                # preference order as the view: the lesson's own group task,
-                # then the course-wide slide homework — never another group's.
-                Homework = self.env["edu.homework"]
-                homework = Homework.search([
-                    ("timetable_id", "=", row.timetable_id.id),
-                    ("is_published", "=", True),
-                ], limit=1) or Homework.search([
-                    ("slide_id", "=", row.slide_id.id),
-                    ("is_published", "=", True),
-                    ("group_id", "=", False),
-                ], limit=1) or Homework.create({
-                    "name": row.slide_id.name,
-                    "slide_id": row.slide_id.id,
-                })
+            homework = row._resolve_homework()
             subs = Submission.search([
                 ("homework_id", "=", homework.id),
                 ("student_id", "=", row.student_id.id),
@@ -235,6 +230,49 @@ class EduStudentLessonReport(models.Model):
                     user_id=user.id if user else self.env.user.id,
                 ))
         return True
+
+    def _resolve_homework(self):
+        """The homework a ball on this row belongs to, creating it if needed.
+
+        Grading a lesson whose slide has no homework yet attaches one
+        automatically (named after the slide) so the ball has a submission to
+        live on. edu.homework.create() fills channel / pass_mark defaults and
+        re-syncs the timetable homework flags. Search first: row.homework_id is
+        stale within a write batch, and grading several students at once must
+        not duplicate it. Same preference order as the SQL view: the lesson's
+        own group task, then the course-wide slide homework — never another
+        group's."""
+        self.ensure_one()
+        if self.homework_id:
+            return self.homework_id
+        if not self.slide_id:
+            raise UserError(_(
+                "%s: bu dars uchun \"Dars/Slayd\" tanlanmagan — ball/izoh qo'yib bo'lmaydi.",
+                self.student_id.display_name,
+            ))
+        Homework = self.env["edu.homework"]
+        return Homework.search([
+            ("timetable_id", "=", self.timetable_id.id),
+            ("is_published", "=", True),
+        ], limit=1) or Homework.search([
+            ("slide_id", "=", self.slide_id.id),
+            ("is_published", "=", True),
+            ("group_id", "=", False),
+        ], limit=1) or Homework.create({
+            "name": self.slide_id.name,
+            "slide_id": self.slide_id.id,
+        })
+
+    def action_open_grading(self):
+        """Row button of the timetable Vazifalar roster: open the student's
+        latest submission (files, izoh, previous attempts) AND the ball input
+        in a single dialog, instead of drilling list -> submissions -> form."""
+        self.ensure_one()
+        return self.env["edu.homework.grade.wizard"].open_grading(
+            student=self.student_id,
+            homework=self.homework_id,
+            report=self,
+        )
 
     @api.model
     def filter_guruhga_qoshilgan(self, domain=None, student_id=None):

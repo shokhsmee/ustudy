@@ -132,7 +132,9 @@ class EduAttendance(models.Model):
         student_count, roster = self._salary_active_students()
 
         if not tier or rate <= 0 or student_count <= 0:
-            if teacher and not tier:
+            # guard: broken rows may have an empty group_id (stored related
+            # drift) — message_post on the empty recordset raises
+            if teacher and not tier and self.group_id:
                 self.group_id.message_post(body=_(
                     "⚠️ Ustoz oyligi hisoblanmadi: %s ustoziga toifa/daraja "
                     "belgilanmagan."
@@ -173,7 +175,13 @@ class EduAttendance(models.Model):
             "state": "confirmed",
             "student_line_ids": student_vals,
         })
-        self.salary_line_id = salary_line.id
+        # sudo: the attendance is already confirmed at this point, and the
+        # plain assignment hit edu.attendance's teacher-lock guard
+        # ("Tasdiqlangan davomatni o'zgartirish mumkin emas") — aborting the
+        # teacher's whole confirm flow (timetable was left completed with the
+        # attendance stuck in draft). The salary-line back-link is system
+        # bookkeeping, not a user edit.
+        self.sudo().write({"salary_line_id": salary_line.id})
 
         # NOTE: no Chiqim is posted here. Confirming a lesson only accrues what
         # the teacher has EARNED (Ustozlar balansi). The company expense is
@@ -181,12 +189,13 @@ class EduAttendance(models.Model):
         # "Oylik berish" wizard (cash basis) — see
         # edu.teacher.salary.line._post_expense.
 
-        self.group_id.message_post(body=_(
-            "💰 Ustoz oyligi: %(teacher)s — %(count)s o'quvchi × %(rate)s = %(total)s"
-        ) % {
-            "teacher": teacher.name,
-            "count": student_count,
-            "rate": "{:,.0f}".format(rate),
-            "total": "{:,.0f}".format(total),
-        })
+        if self.group_id:
+            self.group_id.message_post(body=_(
+                "💰 Ustoz oyligi: %(teacher)s — %(count)s o'quvchi × %(rate)s = %(total)s"
+            ) % {
+                "teacher": teacher.name,
+                "count": student_count,
+                "rate": "{:,.0f}".format(rate),
+                "total": "{:,.0f}".format(total),
+            })
         return salary_line

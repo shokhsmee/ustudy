@@ -587,15 +587,23 @@ class EduGroup(models.Model):
         if self.lesson_start >= self.lesson_end:
             raise UserError(_("Lesson end time must be after start time."))
 
+        if not self.lesson_room.active:
+            raise UserError(_(
+                "%s xonasi arxivlangan — jadval unda ko'rinmaydi. Avval "
+                "guruhga faol xonani tanlang.", self.lesson_room.name))
+
         today = fields.Date.context_today(self)
         regen_from_date = max(today, self.start_date)
-        if regen_from_date > self.end_date:
-            raise UserError(_("Nothing to regenerate: today is after the end date."))
 
         # Data guard BEFORE any destructive step: a start lesson beyond the
         # course total means "Jami darslar soni" holds stale/old-style data —
         # wiping the schedule from it would destroy valid lessons.
         planned_total = self._planned_lesson_total()
+        # In lesson-count mode the PLAN drives regeneration, so an end date in
+        # the past just means the schedule must be extended; without a plan the
+        # end date is the only boundary and being past it is a real error.
+        if planned_total is None and regen_from_date > self.end_date:
+            raise UserError(_("Nothing to regenerate: today is after the end date."))
         if planned_total is not None and planned_total <= 0:
             raise UserError(_(
                 "Jami darslar soni (%s) boshlangan darsdan (%s) kichik. Avval "
@@ -665,6 +673,7 @@ class EduGroup(models.Model):
                 # above removed the excess scheduled lessons — that IS the fix
                 # for over-generated schedules, so report it instead of the
                 # generic "nothing generated" error.
+                self._sync_end_date_to_schedule()
                 return {
                     "type": "ir.actions.client",
                     "tag": "display_notification",
@@ -678,7 +687,16 @@ class EduGroup(models.Model):
                     },
                 }
 
-        while current_date <= self.end_date and (remaining is None or remaining > 0):
+        # In lesson-count mode the loop runs until the plan is full — a stale
+        # end_date must NOT cut the schedule short (a group whose lesson days
+        # were reduced after the end date was computed would otherwise lose
+        # its last lessons forever: regenerate could never add them back).
+        # The hard stop only guards against pathological weekday data.
+        hard_stop = regen_from_date + timedelta(days=1500)
+        while (
+            (remaining > 0 if remaining is not None else current_date <= self.end_date)
+            and current_date <= hard_stop
+        ):
             if current_date in kept_dates:
                 # A started lesson already sits on this date: it keeps its slot
                 # (and its "No."), so advance the numbering past it.
@@ -718,6 +736,7 @@ class EduGroup(models.Model):
 
         if timetable_entries:
             self.write({"timetable_ids": timetable_entries})
+            self._sync_end_date_to_schedule()
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
@@ -729,6 +748,26 @@ class EduGroup(models.Model):
             }
 
         raise UserError(_("No timetable entries were generated. Please check your settings."))
+
+    def _sync_end_date_to_schedule(self):
+        """Point end_date at the group's real last lesson. Only meaningful in
+        lesson-count mode, where end_date is derived data: generation may run
+        past a stale end_date (or stop before it), so after (re)generating the
+        stored date is realigned with the schedule that actually exists."""
+        self.ensure_one()
+        if self._planned_lesson_total() is None:
+            return
+        last = self.env["edu.timetable"].search(
+            [("group_id", "=", self.id), ("state", "!=", "cancelled")],
+            order="start_datetime desc",
+            limit=1,
+        )
+        if last:
+            last_date = fields.Datetime.context_timestamp(
+                self, last.start_datetime
+            ).date()
+            if self.end_date != last_date:
+                self.end_date = last_date
 
     def action_generate_timetable(self):
         self.ensure_one()
@@ -746,6 +785,10 @@ class EduGroup(models.Model):
             raise UserError(_("Please set lesson start and end times."))
         if self.lesson_start >= self.lesson_end:
             raise UserError(_("Lesson end time must be after start time."))
+        if not self.lesson_room.active:
+            raise UserError(_(
+                "%s xonasi arxivlangan — jadval unda ko'rinmaydi. Avval "
+                "guruhga faol xonani tanlang.", self.lesson_room.name))
 
         lessons_by_no = self._get_lessons_by_no()
 
@@ -766,7 +809,13 @@ class EduGroup(models.Model):
                 "Boshlangan dars (%s) jami darslar sonidan (%s) katta yoki teng emas — "
                 "jadval yaratilmaydi.", next_lesson_no, self.lesson_count))
 
-        while current_date <= self.end_date and (remaining is None or remaining > 0):
+        # Same rule as regenerate: in lesson-count mode the plan drives the
+        # loop and a stale/too-early end_date must not truncate the schedule.
+        hard_stop = self.start_date + timedelta(days=1500)
+        while (
+            (remaining > 0 if remaining is not None else current_date <= self.end_date)
+            and current_date <= hard_stop
+        ):
             weekday_num = current_date.weekday()
             matching_weekday = self.lesson_days.filtered(lambda w: w.sequence == weekday_num + 1)
 
@@ -797,6 +846,7 @@ class EduGroup(models.Model):
 
         if timetable_entries:
             self.write({"timetable_ids": timetable_entries})
+            self._sync_end_date_to_schedule()
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",

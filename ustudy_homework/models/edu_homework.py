@@ -1,5 +1,7 @@
 from odoo import api, fields, models, _
 
+from .edu_homework_submission import UNGRADED_STATES
+
 class EduHomework(models.Model):
     _name = "edu.homework"
     _description = "Lesson Homework"
@@ -110,8 +112,9 @@ class EduHomework(models.Model):
             for sub in subs.sorted(key=lambda s: s.id or 0, reverse=True):
                 latest_by_student.setdefault(sub.student_id.id, sub)
             rec.done_ratio = f"{len(latest_by_student)}/{total}"
+            # A retry is ungraded too — it arrives in the 'resubmitted' state.
             rec.ungraded_count = sum(
-                1 for s in latest_by_student.values() if s.state == "submitted"
+                1 for s in latest_by_student.values() if s.state in UNGRADED_STATES
             )
 
     @api.depends("group_id.student_line_ids.student_id", "submission_ids")
@@ -234,6 +237,7 @@ class EduHomework(models.Model):
         [
             ("not_submitted", "In Progress"),
             ("submitted", "Submitted"),
+            ("resubmitted", "Qayta topshirilgan"),
             ("graded", "Passed"),
             ("failed", "Failed"),
         ],

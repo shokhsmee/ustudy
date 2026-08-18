@@ -15,6 +15,13 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="amocrm.access_token",
         help="amoCRM'da yaratilgan uzoq muddatli (long-lived) integratsiya tokeni.",
     )
+    amocrm_kpi_pipeline_ids = fields.Char(
+        string="KPI voronkalari (pipeline ID)",
+        config_parameter="amocrm.kpi_pipeline_ids",
+        help="KPI dashboardlarda lidlar sanaladigan voronkalar, vergul bilan "
+             "(standart: 7889006,10905214 = Call-Center + Sotuv). "
+             "'all' deb yozilsa hamma voronkalar sanaladi.",
+    )
 
     # --- buttons (persist the typed values first, then act) -----------
     def action_amocrm_test_connection(self):

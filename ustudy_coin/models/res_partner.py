@@ -48,6 +48,7 @@ class ResPartner(models.Model):
         state_labels = {
             "not_submitted": "Topshirilmagan",
             "submitted": "Topshirilgan",
+            "resubmitted": "Qayta topshirilgan",
             "graded": "O'tgan",
             "failed": "Yiqilgan",
         }

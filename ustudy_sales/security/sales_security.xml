@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ================= Category + Privilege (Odoo 19) ================= -->
+        <record id="module_category_sales" model="ir.module.category">
+            <field name="name">Sotuvlar</field>
+            <field name="description">Sotuvlar ilovasidagi rollar</field>
+            <field name="sequence">55</field>
+        </record>
+
+        <record id="privilege_sales" model="res.groups.privilege">
+            <field name="name">Sotuvlar roli</field>
+            <field name="category_id" ref="module_category_sales"/>
+            <field name="sequence">55</field>
+        </record>
+
+        <!-- ================= Roles ================= -->
+
+        <!-- Sales manager: full work with orders + courses (products) -->
+        <record id="group_sales_manager" model="res.groups">
+            <field name="name">Sotuv menejeri</field>
+            <field name="privilege_id" ref="privilege_sales"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">Buyurtmalar yaratadi va tasdiqlaydi, kurslarni (mahsulotlarni) boshqaradi, hisob-faktura (qoralama moliya yozuvi) yaratadi. Kassa tasdig'i edu_finance rollarida qoladi.</field>
+        </record>
+
+        <!-- Real system admins are also sales managers automatically -->
+        <record id="base.group_system" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('group_sales_manager'))]"/>
+        </record>
+
+    </data>
+</odoo>

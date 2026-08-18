@@ -144,16 +144,27 @@
                                         <t t-foreach="state.data.rooms" t-as="room" t-key="room.id">
                                             <td t-if="!row.cells[room.id].skip" colspan="2"
                                                 t-att-rowspan="row.cells[room.id].rowspan"
-                                                class="o_dj_cell">
+                                                class="o_dj_cell"
+                                                title="Xonani band qilish: yangi dars qo'shish"
+                                                t-on-click="() => this.openAddLesson(week, block, row, room)">
                                                 <t t-foreach="row.cells[room.id].cards" t-as="card" t-key="card.group_id">
-                                                    <div t-attf-class="o_dj_card o_dj_card_{{ card.color }}"
-                                                         t-on-click="() => this.openCard(card)">
+                                                    <div t-if="card.kind === 'booking'"
+                                                         t-attf-class="o_dj_card o_dj_card_booking"
+                                                         t-on-click.stop="() => this.openCard(card)">
+                                                        <div class="o_dj_card_line o_dj_card_fani" t-esc="card.purpose_label"/>
+                                                        <div t-if="card.note" class="o_dj_card_line" t-esc="card.note"/>
+                                                        <div class="o_dj_card_line o_dj_card_ustoz" t-esc="card.time"/>
+                                                        <div t-if="card.user" class="o_dj_card_line" t-esc="card.user"/>
+                                                    </div>
+                                                    <div t-else=""
+                                                         t-attf-class="o_dj_card o_dj_card_{{ card.color }}"
+                                                         t-on-click.stop="() => this.openCard(card)">
                                                         <div class="o_dj_card_line o_dj_card_fani" t-esc="card.course"/>
                                                         <div class="o_dj_card_line o_dj_card_ustoz" t-esc="card.teacher"/>
-                                                        <div class="o_dj_card_nums">
+                                                        <div class="o_dj_card_nums o_dj_card_modul">
                                                             <span class="o_dj_card_key">Dars soni:</span>
-                                                            <span t-esc="card.lessons_reja"/>
-                                                            <span t-esc="card.lessons_fakt"/>
+                                                            <span t-esc="card.module_reja"/>
+                                                            <span t-esc="card.module_fakt"/>
                                                         </div>
                                                         <div class="o_dj_card_nums">
                                                             <span class="o_dj_card_key">Probniy:</span>

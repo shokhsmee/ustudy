@@ -55,4 +55,49 @@
             </form>
         </field>
     </record>
+
+    <record id="view_dars_jadvali_add_lesson_wizard_form" model="ir.ui.view">
+        <field name="name">dars.jadvali.add.lesson.wizard.form</field>
+        <field name="model">dars.jadvali.add.lesson.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Xonani band qilish">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="dars_only" invisible="1"/>
+                            <field name="purpose" widget="radio" options="{'horizontal': true}"
+                                   invisible="dars_only"/>
+                            <field name="group_id" options="{'no_create': True}"
+                                   invisible="purpose != 'dars'"
+                                   required="purpose == 'dars'"/>
+                            <field name="teacher_id" options="{'no_create': True}"
+                                   invisible="purpose != 'dars'"/>
+                            <field name="room_id" options="{'no_create': True}"/>
+                            <field name="note" invisible="purpose == 'dars'"
+                                   placeholder="Masalan: ota-onalar bilan majlis"/>
+                        </group>
+                        <group>
+                            <field name="lesson_date"/>
+                            <field name="start_time" widget="float_time"/>
+                            <field name="end_time" widget="float_time"/>
+                            <field name="repeat_weekly" invisible="purpose == 'dars' or dars_only"/>
+                            <field name="repeat_until"
+                                   invisible="purpose == 'dars' or dars_only or not repeat_weekly"
+                                   required="repeat_weekly and purpose != 'dars'"/>
+                        </group>
+                    </group>
+                    <!-- single-day booking: which parity block the date falls in,
+                         the picked day green (Du Chor Jum / Se Pay Shan) -->
+                    <div class="mt-2" invisible="repeat_weekly or not lesson_date">
+                        <label for="day_block_preview" string="Dars kunlari"/>
+                        <field name="day_block_preview" nolabel="1" readonly="1"/>
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_add_lesson" string="Band qilish" type="object" class="btn-primary"/>
+                    <button string="Bekor qilish" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
 </odoo>

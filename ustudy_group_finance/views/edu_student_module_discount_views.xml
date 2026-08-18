@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ========================================================= -->
+    <!-- STUDENT FORM: "Moliya" page — per-group-module discounts  -->
+    <!-- ========================================================= -->
+    <record id="view_student_partner_form_module_discounts" model="ir.ui.view">
+        <field name="name">res.partner.form.student.module.discounts</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="ustudy_student.view_student_partner_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Hide the generic "Finance / Moliya" page (edu_finance) — the
+                 student form has this module's Moliya page (discounts) and
+                 the Moliya smart button for payments -->
+            <xpath expr="//page[@name='finance_page']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <xpath expr="//notebook" position="inside">
+                <page string="Moliya" name="module_discount_page"
+                      invisible="not is_student">
+
+                    <separator string="Modul chegirmalari"/>
+                    <div class="text-muted mb-2">
+                        Har bir guruh moduli uchun alohida chegirma belgilanadi.
+                        Modul to'lovi chegirma ayirilgan qolgan summada qabul qilinadi.
+                    </div>
+
+                    <field name="module_discount_ids" nolabel="1">
+                        <list editable="bottom">
+                            <field name="student_line_id"
+                                   string="Guruh"
+                                   domain="[('student_id', '=', parent.id), ('state', '!=', 'cancelled')]"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="module_id"
+                                   string="Modul"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="module_price"
+                                   string="Modul narxi"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            <field name="discount_amount"
+                                   string="Chegirma"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            <field name="final_price"
+                                   string="To'lanadigan summa"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            <field name="note" string="Izoh" optional="show"/>
+                            <field name="currency_id" column_invisible="1"/>
+                            <field name="student_id" column_invisible="1"/>
+                        </list>
+                    </field>
+
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>
