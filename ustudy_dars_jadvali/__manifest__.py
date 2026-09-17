@@ -1,6 +1,6 @@
 {
     "name": "Ustudy Dars Jadvali (Doska)",
-    "version": "1.6.1",
+    "version": "1.9.1",
     "author": "Ustudy",
     "summary": "Excel-style room/time schedule board with Reja/Fakt totals",
     "depends": [

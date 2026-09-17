@@ -3,7 +3,7 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from datetime import datetime, timedelta, time
 import pytz
 
-from .edu_group import teacher_locked
+from .edu_group import CLOSED_GROUP_STATES, teacher_locked
 
 
 class EduTimetable(models.Model):
@@ -125,6 +125,16 @@ class EduTimetable(models.Model):
     )
 
     notes = fields.Text(string="Notes")
+
+    # Set by edu.group's "course finished" hook on the lessons it cancels, so
+    # reopening the group ("Faol" again) can put exactly those lessons back —
+    # a manually cancelled lesson (holiday, moved day) must stay cancelled.
+    auto_cancelled_on_done = fields.Boolean(
+        string="Auto-cancelled (course finished)",
+        default=False,
+        copy=False,
+        index=True,
+    )
 
     color = fields.Integer(string="Color", related="group_id.group_color", store=False)
     student_count = fields.Integer(string="Students", related="group_id.student_count", store=False)
@@ -323,6 +333,10 @@ class EduTimetable(models.Model):
                 # Checked via group_id, not the stored group_active copy: a
                 # NULL in the copy would silently drop a live lesson here.
                 ("group_id.active", "=", True),
+                # Same reasoning for finished/cancelled groups: they are off
+                # the schedule, so their leftover lessons must not block a
+                # room for a group that is still running.
+                ("group_id.state", "not in", list(CLOSED_GROUP_STATES)),
                 ("start_datetime", "<", record.end_datetime),
                 ("end_datetime", ">", record.start_datetime),
             ]
@@ -341,6 +355,24 @@ class EduTimetable(models.Model):
                     )
                 )
 
+    def _room_taken_by_other_group(self):
+        """True when another live lesson/booking already occupies this room in
+        this slot. Same rule as _check_room_availability, but as a question
+        instead of a ValidationError (used when reopening a group restores its
+        lessons — see edu.group._restore_auto_cancelled_lessons)."""
+        self.ensure_one()
+        if not (self.room_id and self.start_datetime and self.end_datetime):
+            return False
+        return bool(self.search_count([
+            ("id", "!=", self.id),
+            ("room_id", "=", self.room_id.id),
+            ("state", "!=", "cancelled"),
+            ("group_id.active", "=", True),
+            ("group_id.state", "not in", list(CLOSED_GROUP_STATES)),
+            ("start_datetime", "<", self.end_datetime),
+            ("end_datetime", ">", self.start_datetime),
+        ]))
+
     # ---------- teacher lock ----------
     # Teachers run lessons (state transitions of the attendance flow, topic,
     # notes) but never reschedule: time/day/room/assignment changes, creating
@@ -350,13 +382,49 @@ class EduTimetable(models.Model):
         "start_datetime", "end_datetime",
     }
 
+    # ---------- finished groups stay off the schedule ----------
+    def _check_group_open(self, group):
+        """A group whose course is over (Tugallandi/Bekor qilindi) is off the
+        schedule: marking it done cancels its remaining lessons, so letting a
+        new one be added right after would silently put it back on the
+        timetable and the Jadval doskasi board. Guarded here (not only in the
+        wizard domain) because every add path — wizard, import, list view,
+        regenerate — goes through create/write."""
+        if not group or group.state not in CLOSED_GROUP_STATES:
+            return
+        if self.env.context.get("skip_closed_group_check"):
+            return
+        raise UserError(_(
+            "%(group)s guruhi \"%(state)s\" holatida — tugagan guruhga yangi dars "
+            "qo'shib bo'lmaydi. Avval guruhni qayta ishga tushiring "
+            "(\"Qayta boshlash\"), keyin darsni qo'shing.",
+            group=group.display_name,
+            state=dict(group._fields["state"]._description_selection(self.env))
+                .get(group.state, group.state),
+        ))
+
     @api.model_create_multi
     def create(self, vals_list):
         if teacher_locked(self.env):
             raise AccessError(_("O'qituvchi dars jadvaliga yangi dars qo'sha olmaydi. Bu administratsiya vazifasi."))
+        Group = self.env["edu.group"]
+        for vals in vals_list:
+            if vals.get("state") == "cancelled":
+                continue  # a cancelled entry is not on the schedule
+            self._check_group_open(Group.browse(vals.get("group_id")).exists())
         return super().create(vals_list)
 
     def write(self, vals):
+        # Moving a lesson onto a finished group, or reviving a cancelled one of
+        # a finished group, puts it back on the board just like creating it.
+        if "group_id" in vals or vals.get("state") in ("scheduled", "in_progress"):
+            target = (
+                self.env["edu.group"].browse(vals["group_id"]).exists()
+                if vals.get("group_id")
+                else None
+            )
+            for rec in self:
+                self._check_group_open(target or rec.group_id)
         if teacher_locked(self.env):
             blocked = self.TEACHER_PROTECTED_FIELDS & set(vals)
             if blocked:

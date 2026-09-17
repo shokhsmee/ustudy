@@ -1,0 +1,428 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-name="ustudy_jadval.Workspace">
+    <div class="o_jadval">
+
+        <!-- ========================= MAIN ========================= -->
+        <main class="o_jd_main">
+            <div class="o_jd_loading" t-if="state.loading and !data">
+                <span class="o_jd_spinner"/>
+            </div>
+
+            <div class="o_jd_scroll" t-if="data" t-att-class="{ 'o_jd_blurred': state.drawer.open }">
+
+                <!-- HERO -->
+                <section class="o_jd_hero">
+                    <div class="o_jd_hero_text">
+                        <div class="o_jd_eyebrow">
+                            <span class="o_jd_eyebrow_mark"/>
+                            <span>akademiya jonli xaritasi</span>
+                        </div>
+                        <h1 class="o_jd_hero_title">
+                            Akademiya pulsi, yagona operatsion kontur.
+                        </h1>
+                        <p class="o_jd_hero_sub">
+                            Auditoriyalar, vaqt va tadbir holati — bitta jadval maydonida.
+                        </p>
+                    </div>
+                    <div class="o_jd_hero_side">
+                        <div class="o_jd_hero_actions">
+                            <button class="o_jd_btn o_jd_btn_ghost" t-on-click="openFreeRooms">
+                                <i class="fa fa-magic"/> Bo'sh auditoriya topish
+                            </button>
+                            <button class="o_jd_btn o_jd_btn_primary" t-on-click="addEvent">
+                                <i class="fa fa-plus"/> Tadbir qo'shish
+                            </button>
+                        </div>
+                        <div class="o_jd_live">
+                            <div class="o_jd_wave">
+                                <span class="o_jd_wave_bar"
+                                      t-foreach="loadBars" t-as="bar" t-key="bar.key"
+                                      t-att-class="{ 'o_jd_wave_on': bar.active }"
+                                      t-attf-style="height:{{ bar.height }}%;"/>
+                            </div>
+                            <div class="o_jd_live_meta">
+                                <span class="o_jd_live_label">
+                                    <span class="o_jd_live_dot"/>
+                                    <span>real vaqt operatsiyalari</span>
+                                </span>
+                                <span class="o_jd_live_day">
+                                    <t t-esc="data.day_label_full"/> ·
+                                    <t t-esc="data.grid.hours[0].label"/>–<t t-esc="data.grid.hours[data.grid.hours.length - 1].label"/>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- STATS -->
+                <section class="o_jd_stats">
+                    <button class="o_jd_stat"
+                            t-foreach="data.stats" t-as="stat" t-key="stat.key"
+                            t-att-class="'o_jd_stat_' + stat.tone"
+                            t-on-click="() => this.onStatClick(stat)">
+                        <span class="o_jd_stat_icon"><i class="fa" t-att-class="stat.icon"/></span>
+                        <span class="o_jd_stat_body">
+                            <span class="o_jd_stat_label" t-esc="stat.label"/>
+                            <span class="o_jd_stat_value" t-esc="stat.value"/>
+                            <span class="o_jd_stat_hint" t-esc="stat.hint"/>
+                        </span>
+                        <i class="fa fa-angle-right o_jd_stat_more" t-if="stat.drill"/>
+                    </button>
+                </section>
+
+                <!-- WORKSPACE -->
+                <section class="o_jd_ws">
+                    <div class="o_jd_ws_head">
+                        <div>
+                            <div class="o_jd_eyebrow o_jd_eyebrow_plain">jadval ishchi maydoni</div>
+                            <div class="o_jd_ws_title">
+                                <h2>Dars jadvali</h2>
+                                <span class="o_jd_ws_range" t-esc="data.range_label"/>
+                            </div>
+                        </div>
+                        <div class="o_jd_ws_controls">
+                            <div class="o_jd_pager">
+                                <button class="o_jd_pager_btn" t-on-click="() => this.shiftWeek(-1)">
+                                    <i class="fa fa-long-arrow-left"/>
+                                </button>
+                                <button class="o_jd_pager_today" t-on-click="goToday">Bugun</button>
+                                <button class="o_jd_pager_btn" t-on-click="() => this.shiftWeek(1)">
+                                    <i class="fa fa-long-arrow-right"/>
+                                </button>
+                            </div>
+                            <div class="o_jd_segment">
+                                <button t-att-class="{ 'o_jd_seg_on': data.view === 'day' }"
+                                        t-on-click="() => this.setView('day')">Kun</button>
+                                <button t-att-class="{ 'o_jd_seg_on': data.view === 'week' }"
+                                        t-on-click="() => this.setView('week')">Hafta</button>
+                                <button t-att-class="{ 'o_jd_seg_on': data.view === 'rooms' }"
+                                        t-on-click="() => this.setView('rooms')">Auditoriyalar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- day tabs + legend -->
+                    <div class="o_jd_days">
+                        <div class="o_jd_days_list">
+                            <button class="o_jd_day"
+                                    t-foreach="data.week" t-as="day" t-key="day.date"
+                                    t-att-class="{ 'o_jd_day_on': day.is_selected, 'o_jd_day_today': day.is_today }"
+                                    t-on-click="() => this.selectDay(day)">
+                                <span class="o_jd_day_dow" t-esc="day.dow"/>
+                                <span class="o_jd_day_num" t-esc="day.day"/>
+                            </button>
+                        </div>
+                        <div class="o_jd_legend">
+                            <span><i class="o_jd_dot o_jd_dot_free"/>Bo'sh</span>
+                            <span><i class="o_jd_dot o_jd_dot_busy"/>Band</span>
+                            <span><i class="o_jd_dot o_jd_dot_conflict"/>Konflikt</span>
+                        </div>
+                    </div>
+
+                    <!-- filters -->
+                    <div class="o_jd_filters">
+                        <label class="o_jd_search">
+                            <i class="fa fa-search"/>
+                            <input type="text" placeholder="Jadval bo'yicha qidirish"
+                                   t-model="state.search"/>
+                        </label>
+                        <select t-model="state.filters.course_id" t-on-change="onFilterChange">
+                            <option value="">Barcha kurslar</option>
+                            <t t-foreach="data.filter_options.courses" t-as="course" t-key="course.id">
+                                <option t-att-value="course.id" t-esc="course.name"/>
+                            </t>
+                        </select>
+                        <select t-model="state.filters.teacher_id" t-on-change="onFilterChange">
+                            <option value="">Barcha o'qituvchilar</option>
+                            <t t-foreach="data.filter_options.teachers" t-as="teacher" t-key="teacher.id">
+                                <option t-att-value="teacher.id" t-esc="teacher.name"/>
+                            </t>
+                        </select>
+                        <select t-model="state.filters.room_id" t-on-change="onFilterChange">
+                            <option value="">Barcha auditoriyalar</option>
+                            <t t-foreach="data.filter_options.rooms" t-as="room" t-key="room.id">
+                                <option t-att-value="room.id" t-esc="room.name"/>
+                            </t>
+                        </select>
+                        <select t-model="state.filters.type" t-on-change="onFilterChange">
+                            <option value="">Barcha turlar</option>
+                            <t t-foreach="data.filter_options.types" t-as="type" t-key="type.id">
+                                <option t-att-value="type.id" t-esc="type.name"/>
+                            </t>
+                        </select>
+                        <select t-model="state.filters.status" t-on-change="onFilterChange">
+                            <option value="">Barcha holatlar</option>
+                            <t t-foreach="data.filter_options.statuses" t-as="status" t-key="status.id">
+                                <option t-att-value="status.id" t-esc="status.name"/>
+                            </t>
+                        </select>
+                        <button class="o_jd_reset" t-on-click="resetFilters">Tozalash</button>
+                    </div>
+
+                    <!-- GRID -->
+                    <div class="o_jd_grid" t-if="data.view !== 'rooms'" t-att-style="gridStyle">
+                        <div class="o_jd_grid_head">
+                            <div class="o_jd_time_head">
+                                <span class="o_jd_time_head_label">Vaqt</span>
+                                <span class="o_jd_time_head_day"
+                                      t-esc="data.view === 'week' ? data.range_label : data.day_label"/>
+                            </div>
+                            <div class="o_jd_head_cols">
+                                <div class="o_jd_col_head"
+                                     t-foreach="data.columns" t-as="column" t-key="column.key"
+                                     t-att-class="{ 'o_jd_col_today': column.is_today }">
+                                    <span class="o_jd_col_title" t-esc="column.title"/>
+                                    <span class="o_jd_col_sub" t-esc="column.subtitle"/>
+                                    <i class="o_jd_dot" t-att-class="'o_jd_dot_' + column.status"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="o_jd_grid_body">
+                            <div class="o_jd_time_col">
+                                <span class="o_jd_hour_label"
+                                      t-foreach="data.grid.hours" t-as="hour" t-key="hour.min"
+                                      t-att-style="hourStyle(hour)" t-esc="hour.label"/>
+                            </div>
+                            <div class="o_jd_cols">
+                                <div class="o_jd_col"
+                                     t-foreach="data.columns" t-as="column" t-key="column.key"
+                                     t-on-click="(ev) => this.onColumnClick(column, ev)">
+                                    <span class="o_jd_hour_line"
+                                          t-foreach="data.grid.hours" t-as="hour" t-key="hour.min"
+                                          t-att-style="hourStyle(hour)"/>
+                                    <div class="o_jd_event"
+                                         t-foreach="eventsFor(column)" t-as="event" t-key="event.uid"
+                                         t-att-class="'o_jd_event_' + event.tone"
+                                         t-att-style="eventStyle(event)"
+                                         t-on-click="() => this.openEvent(event.uid)">
+                                        <div class="o_jd_ev_type">
+                                            <i class="fa"
+                                               t-att-class="event.kind === 'lesson' ? 'fa-graduation-cap' : 'fa-users'"/>
+                                            <span t-esc="event.type_label"/>
+                                        </div>
+                                        <div class="o_jd_ev_title" t-esc="event.title"/>
+                                        <div class="o_jd_ev_code">
+                                            <span t-esc="event.code"/>
+                                            <span class="o_jd_ev_room"
+                                                  t-if="data.view === 'week'"
+                                                  t-esc="event.room_name"/>
+                                        </div>
+                                        <div class="o_jd_ev_time" t-esc="event.time_label"/>
+                                    </div>
+                                </div>
+                                <div class="o_jd_now" t-if="showNowLine" t-att-style="nowStyle">
+                                    <span class="o_jd_now_pill" t-esc="nowLabel"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ROOMS VIEW -->
+                    <div class="o_jd_rooms" t-if="data.view === 'rooms'">
+                        <div class="o_jd_room" t-foreach="data.rooms_view" t-as="room" t-key="room.id">
+                            <div class="o_jd_room_head">
+                                <div>
+                                    <div class="o_jd_room_name" t-esc="room.name"/>
+                                    <div class="o_jd_room_sub">
+                                        <span t-esc="room.capacity"/> o'rin ·
+                                        <span t-esc="room.busy_label"/> band
+                                    </div>
+                                </div>
+                                <div class="o_jd_room_gauge">
+                                    <span class="o_jd_room_pct"><t t-esc="room.occupancy"/>%</span>
+                                    <span class="o_jd_room_bar">
+                                        <span t-attf-style="width:{{ room.occupancy }}%;"/>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="o_jd_room_events" t-if="room.events.length">
+                                <button class="o_jd_room_event"
+                                        t-foreach="room.events" t-as="event" t-key="event.uid"
+                                        t-att-class="'o_jd_event_' + event.tone"
+                                        t-on-click="() => this.openEvent(event.uid)">
+                                    <span class="o_jd_room_time" t-esc="event.time_label"/>
+                                    <span class="o_jd_room_title" t-esc="event.title"/>
+                                    <span class="o_jd_room_code" t-esc="event.code"/>
+                                </button>
+                            </div>
+                            <div class="o_jd_room_empty" t-if="!room.events.length">
+                                Bu kuni band emas
+                            </div>
+                            <div class="o_jd_room_free" t-if="room.free_windows.length">
+                                <span class="o_jd_room_free_label">Bo'sh oynalar</span>
+                                <button class="o_jd_free_chip"
+                                        t-foreach="room.free_windows" t-as="gap" t-key="gap.start_min"
+                                        t-on-click="() => this.bookFreeWindow(room, gap)">
+                                    <span t-esc="gap.label"/>
+                                    <i class="fa fa-plus"/>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- DRAWER -->
+            <div class="o_jd_backdrop" t-if="state.drawer.open" t-on-click="closeDrawer"/>
+            <aside class="o_jd_drawer" t-if="state.drawer.open">
+                <div class="o_jd_drawer_loading" t-if="state.drawer.loading">
+                    <span class="o_jd_spinner"/>
+                </div>
+                <t t-if="state.drawer.detail">
+                    <t t-set="detail" t-value="state.drawer.detail"/>
+                    <div class="o_jd_drawer_top">
+                        <button class="o_jd_round_btn" t-on-click="closeDrawer">
+                            <i class="fa fa-times"/>
+                        </button>
+                        <span class="o_jd_chip" t-att-class="'o_jd_chip_' + detail.tone">
+                            <i class="fa"
+                               t-att-class="detail.kind === 'lesson' ? 'fa-graduation-cap' : 'fa-users'"/>
+                            <span t-esc="detail.type_label"/>
+                        </span>
+                        <button class="o_jd_round_btn o_jd_round_danger"
+                                t-if="detail.kind === 'booking'"
+                                t-on-click="deleteDrawerRecord" title="Bandlikni bekor qilish">
+                            <i class="fa fa-times"/>
+                        </button>
+                    </div>
+                    <div class="o_jd_drawer_body">
+                        <div class="o_jd_drawer_state" t-esc="detail.state_label"/>
+                        <h2 class="o_jd_drawer_title" t-esc="detail.title"/>
+                        <p class="o_jd_drawer_sub" t-esc="detail.subtitle"/>
+
+                        <div class="o_jd_ww">
+                            <div class="o_jd_ww_box">
+                                <span class="o_jd_ww_label">Qachon</span>
+                                <span class="o_jd_ww_value" t-esc="detail.when_label"/>
+                                <span class="o_jd_ww_value" t-esc="detail.when_time"/>
+                            </div>
+                            <div class="o_jd_ww_box">
+                                <span class="o_jd_ww_label">Qayerda</span>
+                                <span class="o_jd_ww_value" t-esc="detail.where_label"/>
+                                <span class="o_jd_ww_value" t-esc="detail.where_hint"/>
+                            </div>
+                        </div>
+
+                        <div class="o_jd_drawer_section">tadbir ma'lumotlari</div>
+                        <div class="o_jd_rows">
+                            <div class="o_jd_row" t-foreach="detail.rows" t-as="row" t-key="row.label">
+                                <span class="o_jd_row_label" t-esc="row.label"/>
+                                <span class="o_jd_row_value" t-esc="row.value"/>
+                            </div>
+                        </div>
+
+                        <div class="o_jd_drawer_section" t-if="detail.notes">izohlar</div>
+                        <p class="o_jd_drawer_notes" t-if="detail.notes" t-esc="detail.notes"/>
+                    </div>
+                    <div class="o_jd_drawer_foot">
+                        <button class="o_jd_btn o_jd_btn_ghost" t-on-click="closeDrawer">Yopish</button>
+                        <button class="o_jd_btn o_jd_btn_primary" t-on-click="openDrawerRecord">
+                            <t t-esc="detail.kind === 'lesson' ? 'Guruh kartasi' : 'Tahrirlash'"/>
+                        </button>
+                    </div>
+                </t>
+            </aside>
+        </main>
+    </div>
+</t>
+
+<!-- ==================== BO'SH AUDITORIYA DIALOG ==================== -->
+<t t-name="ustudy_jadval.FreeRoomDialog">
+    <Dialog title="dialogTitle" size="'lg'" contentClass="'o_jd_dialog'">
+        <div class="o_jd_free">
+            <div class="o_jd_free_filters">
+                <label>
+                    <span>Boshlanish</span>
+                    <input type="date" t-model="state.dateFrom" t-on-change="() => this.load()"/>
+                </label>
+                <label>
+                    <span>Tugash</span>
+                    <input type="date" t-model="state.dateTo" t-on-change="() => this.load()"/>
+                </label>
+                <label>
+                    <span>Auditoriya</span>
+                    <select t-model="state.roomId" t-on-change="() => this.load()">
+                        <option value="">Barchasi</option>
+                        <t t-foreach="props.rooms" t-as="room" t-key="room.id">
+                            <option t-att-value="room.id" t-esc="room.name"/>
+                        </t>
+                    </select>
+                </label>
+                <label>
+                    <span>Davomiyligi</span>
+                    <select t-model="state.minMinutes" t-on-change="() => this.load()">
+                        <option value="60">1 soat</option>
+                        <option value="90">1,5 soat</option>
+                        <option value="120">2 soat</option>
+                        <option value="180">3 soat</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="o_jd_free_loading" t-if="state.loading"><span class="o_jd_spinner"/></div>
+
+            <t t-if="!state.loading and state.data">
+                <div class="o_jd_free_total">
+                    Jami <b t-esc="state.data.total"/> ta bo'sh oyna topildi
+                </div>
+                <div class="o_jd_free_day" t-foreach="state.data.days" t-as="day" t-key="day.date">
+                    <div class="o_jd_free_day_label" t-esc="day.label"/>
+                    <div class="o_jd_free_room" t-foreach="day.rooms" t-as="room" t-key="room.room_id">
+                        <span class="o_jd_free_room_name">
+                            <t t-esc="room.room_name"/>
+                            <small><t t-esc="room.capacity"/> o'rin</small>
+                        </span>
+                        <span class="o_jd_free_windows">
+                            <button class="o_jd_free_chip"
+                                    t-foreach="room.windows" t-as="gap" t-key="gap.start_min"
+                                    t-on-click="() => this.pick(day, room, gap)">
+                                <span t-esc="gap.label"/>
+                                <i class="fa fa-plus"/>
+                            </button>
+                        </span>
+                    </div>
+                </div>
+                <div class="o_jd_free_empty" t-if="!state.data.days.length">
+                    Tanlangan davrda bo'sh oyna yo'q.
+                </div>
+            </t>
+        </div>
+    </Dialog>
+</t>
+
+<!-- ======================= KONFLIKTLAR DIALOG ======================= -->
+<t t-name="ustudy_jadval.ConflictDialog">
+    <Dialog title="dialogTitle" size="'lg'" contentClass="'o_jd_dialog'">
+        <div class="o_jd_conflicts">
+            <div class="o_jd_free_empty" t-if="!props.conflicts.length">
+                Konflikt yo'q — bitta xonada ustma-ust tushgan tadbir topilmadi.
+            </div>
+            <div class="o_jd_conflict" t-foreach="props.conflicts" t-as="conflict"
+                 t-key="conflict.first.uid + '-' + conflict.second.uid">
+                <div class="o_jd_conflict_head">
+                    <i class="fa fa-exclamation-triangle"/>
+                    <span t-esc="conflict.room_name"/>
+                    <small t-esc="conflict.day_label"/>
+                </div>
+                <div class="o_jd_conflict_pair">
+                    <button t-on-click="() => this.open(conflict.first.uid)">
+                        <span class="o_jd_conflict_time" t-esc="conflict.first.time_label"/>
+                        <span class="o_jd_conflict_title" t-esc="conflict.first.title"/>
+                        <span class="o_jd_conflict_code" t-esc="conflict.first.code"/>
+                    </button>
+                    <span class="o_jd_conflict_vs">×</span>
+                    <button t-on-click="() => this.open(conflict.second.uid)">
+                        <span class="o_jd_conflict_time" t-esc="conflict.second.time_label"/>
+                        <span class="o_jd_conflict_title" t-esc="conflict.second.title"/>
+                        <span class="o_jd_conflict_code" t-esc="conflict.second.code"/>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Dialog>
+</t>
+
+</templates>

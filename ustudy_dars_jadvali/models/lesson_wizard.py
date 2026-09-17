@@ -89,9 +89,13 @@ class DarsJadvaliAddLessonWizard(models.TransientModel):
     dars_only = fields.Boolean(string="Faqat dars")
     # required only for purpose == 'dars'; enforced in action_add_lesson (the
     # view mirrors it with a conditional required/invisible)
+    # Finished/cancelled groups are off the schedule (marking a group
+    # "Tugallandi" cancels its remaining lessons), so they must not be
+    # pickable here — adding a lesson would put the group straight back on the
+    # timetable and the board. edu.timetable.create guards it server-side too.
     group_id = fields.Many2one(
         "edu.group", string="Guruh",
-        domain=[("active", "=", True)],
+        domain=[("active", "=", True), ("state", "not in", ["done", "cancelled"])],
     )
     teacher_id = fields.Many2one("hr.employee", string="Ustoz")
     room_id = fields.Many2one(
@@ -163,6 +167,10 @@ class DarsJadvaliAddLessonWizard(models.TransientModel):
 
         if not self.group_id:
             raise UserError(_("Dars qo'shish uchun guruhni tanlang."))
+        if self.group_id.state in ("done", "cancelled"):
+            raise UserError(_(
+                "%s guruhi tugagan — unga yangi dars qo'shib bo'lmaydi. Avval "
+                "guruhni qayta ishga tushiring.", self.group_id.display_name))
 
         return self._create_lesson()
 
@@ -181,6 +189,9 @@ class DarsJadvaliAddLessonWizard(models.TransientModel):
             ("room_id", "=", self.room_id.id),
             ("state", "!=", "cancelled"),
             ("group_id.active", "=", True),
+            # mirrors _check_room_availability: finished groups are off the
+            # schedule and do not hold a room
+            ("group_id.state", "not in", ["done", "cancelled"]),
             ("start_datetime", "<", end_dt),
             ("end_datetime", ">", start_dt),
         ], limit=1)

@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
 <t t-name="ustudy_dars_jadvali.Board">
-    <div class="o_dars_jadvali">
+    <div class="o_dars_jadvali" t-ref="root">
         <!-- ================= FILTERS ================= -->
         <div class="o_dj_filters">
             <div class="o_dj_filter">
@@ -69,7 +69,27 @@
                 <button class="btn btn-sm btn-secondary" t-on-click="() => this.shiftWeek(-1)">‹ Hafta</button>
                 <button class="btn btn-sm btn-secondary" t-on-click="() => this.shiftWeek(1)">Hafta ›</button>
                 <button class="btn btn-sm btn-light" t-on-click="resetFilters">Tozalash</button>
+                <button class="btn btn-sm btn-primary o_dj_find_btn" t-on-click="openFreeSlots"
+                        title="Dars yoki event uchun bo&#8216;sh vaqt oynalarini topish">
+                    <i class="fa fa-search me-1"/>Bo&#8216;sh joy topish
+                </button>
             </div>
+        </div>
+
+        <!-- ================= MINI DASHBOARDS ================= -->
+        <div t-if="state.data and state.data.stats" class="o_dj_stats">
+            <t t-foreach="state.data.stats" t-as="stat" t-key="stat.key">
+                <div t-attf-class="o_dj_stat o_dj_stat_{{ stat.key }}">
+                    <div class="o_dj_stat_label" t-esc="stat.label"/>
+                    <div class="o_dj_stat_body">
+                        <span class="o_dj_stat_value" t-esc="stat.value"/>
+                        <span t-attf-class="o_dj_stat_delta o_dj_delta_{{ deltaDir(stat) }}"
+                              t-att-title="'Oldingi davr: ' + stat.prev"
+                              t-esc="deltaLabel(stat)"/>
+                    </div>
+                    <div class="o_dj_stat_hint" t-esc="stat.hint"/>
+                </div>
+            </t>
         </div>
 
         <div t-if="state.loading" class="o_dj_loading">Yuklanmoqda...</div>
@@ -152,6 +172,11 @@
                                                          t-attf-class="o_dj_card o_dj_card_booking"
                                                          t-on-click.stop="() => this.openCard(card)">
                                                         <div class="o_dj_card_line o_dj_card_fani" t-esc="card.purpose_label"/>
+                                                        <div t-if="card.is_extra" class="o_dj_card_days">
+                                                            <span class="o_dj_card_days_badge"
+                                                                  t-att-title="card.dates.join(', ')"
+                                                                  t-esc="card.days_label"/>
+                                                        </div>
                                                         <div t-if="card.note" class="o_dj_card_line" t-esc="card.note"/>
                                                         <div class="o_dj_card_line o_dj_card_ustoz" t-esc="card.time"/>
                                                         <div t-if="card.user" class="o_dj_card_line" t-esc="card.user"/>
@@ -161,6 +186,11 @@
                                                          t-on-click.stop="() => this.openCard(card)">
                                                         <div class="o_dj_card_line o_dj_card_fani" t-esc="card.course"/>
                                                         <div class="o_dj_card_line o_dj_card_ustoz" t-esc="card.teacher"/>
+                                                        <div t-if="card.is_extra" class="o_dj_card_days">
+                                                            <span class="o_dj_card_days_badge"
+                                                                  t-att-title="card.dates.join(', ')"
+                                                                  t-esc="card.days_label"/>
+                                                        </div>
                                                         <div class="o_dj_card_nums o_dj_card_modul">
                                                             <span class="o_dj_card_key">Dars soni:</span>
                                                             <span t-esc="card.module_reja"/>
@@ -210,6 +240,76 @@
             </t>
         </div>
     </div>
+</t>
+
+<t t-name="ustudy_dars_jadvali.FreeSlotDialog">
+    <Dialog title="dialogTitle" size="'lg'" contentClass="'o_dj_free_dialog'">
+        <div class="o_dj_free_filters">
+            <div class="o_dj_filter">
+                <label>Xona</label>
+                <select t-model="state.roomId" t-on-change="() => this.load()">
+                    <option value="">Barchasi</option>
+                    <t t-foreach="props.rooms" t-as="r" t-key="r.id">
+                        <option t-att-value="r.id" t-esc="r.name"/>
+                    </t>
+                </select>
+            </div>
+            <div class="o_dj_filter">
+                <label>Eng kam davomiylik</label>
+                <select t-model="state.minMinutes" t-on-change="() => this.load()">
+                    <option value="60">1 soat</option>
+                    <option value="90">1,5 soat</option>
+                    <option value="120">2 soat</option>
+                    <option value="180">3 soat</option>
+                </select>
+            </div>
+            <div class="o_dj_filter">
+                <label>Boshlanish</label>
+                <input type="date" t-model="state.dateFrom" t-on-change="() => this.load()"/>
+            </div>
+            <div class="o_dj_filter">
+                <label>Tugash</label>
+                <input type="date" t-model="state.dateTo" t-on-change="() => this.load()"/>
+            </div>
+        </div>
+
+        <div t-if="state.loading" class="o_dj_loading">Yuklanmoqda...</div>
+        <t t-else="">
+            <div class="o_dj_free_summary">
+                Jami <b t-esc="state.data.total"/> ta bo&#8216;sh oyna.
+                Vaqtni bosing &#8212; dars yoki event qo&#8216;shish oynasi shu vaqt bilan ochiladi.
+            </div>
+            <div t-if="!state.data.days.length" class="o_dj_free_empty">
+                Tanlangan shartlar bo&#8216;yicha bo&#8216;sh joy topilmadi.
+            </div>
+            <t t-foreach="state.data.days" t-as="day" t-key="day.date">
+                <div class="o_dj_free_day">
+                    <div class="o_dj_free_day_head" t-esc="day.label"/>
+                    <t t-foreach="day.rooms" t-as="room" t-key="room.room_id">
+                        <div class="o_dj_free_room">
+                            <div class="o_dj_free_room_name">
+                                <t t-esc="room.room_name"/>
+                                <span class="o_dj_cap" t-esc="' &#183; ' + room.capacity + ' o&#8216;rin'"/>
+                            </div>
+                            <div class="o_dj_free_wins">
+                                <t t-foreach="room.windows" t-as="win" t-key="win.label">
+                                    <button class="o_dj_free_win"
+                                            t-on-click="() => this.pick(day, room, win)">
+                                        <t t-esc="win.label"/>
+                                        <span class="o_dj_free_fits" t-esc="win.fits + ' ta'"/>
+                                    </button>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </t>
+        </t>
+
+        <t t-set-slot="footer">
+            <button class="btn btn-secondary" t-on-click="() => this.props.close()">Yopish</button>
+        </t>
+    </Dialog>
 </t>
 
 </templates>

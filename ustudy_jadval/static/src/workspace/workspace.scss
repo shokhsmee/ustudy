@@ -1,0 +1,979 @@
+// Jadval operatsion maydoni — "akademiya pulsi" ishchi ekrani.
+// Dizayn tili: iliq qog'oz fon, to'q yashil aksent, monospace yorliqlar.
+
+$jd-ink:        #1a211f;
+$jd-ink-soft:   #6c746f;
+$jd-ink-faint:  #9aa19c;
+$jd-paper:      #f6f4ef;
+$jd-card:       #ffffff;
+$jd-line:       #e5e1d7;
+$jd-line-soft:  #efece5;
+
+$jd-rail:       #161f1d;
+$jd-rail-2:     #202d29;
+$jd-rail-ink:   #a9b4af;
+
+$jd-green:      #15594b;
+$jd-green-2:    #2f7a63;
+$jd-green-3:    #3fae86;
+
+$jd-mint:       #e7f0ea;
+$jd-mint-line:  #2f7a63;
+$jd-rose:       #f8dee3;
+$jd-rose-line:  #c9546a;
+$jd-grey:       #edeae3;
+$jd-grey-line:  #a29e94;
+
+$jd-amber:      #dfa23c;
+$jd-red:        #cf5442;
+
+$jd-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+$jd-sans: "Inter", -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+@mixin jd-eyebrow($size: 9px) {
+    font-family: $jd-mono;
+    font-size: $size;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.o_jadval {
+    height: 100%;
+    display: flex;
+    background: $jd-paper;
+    color: $jd-ink;
+    font-family: $jd-sans;
+    font-size: 13px;
+    overflow: hidden;
+
+    * { box-sizing: border-box; }
+    button { font-family: inherit; }
+
+    // ==================== MAIN ====================
+    .o_jd_main {
+        position: relative;
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+    }
+    .o_jd_scroll {
+        height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 18px 22px 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+
+        // every section keeps its natural height and the page scrolls —
+        // without this, flex shrinks them and crops the content
+        > * { flex: 0 0 auto; }
+    }
+
+    .o_jd_loading,
+    .o_jd_drawer_loading,
+    .o_jd_free_loading {
+        display: grid;
+        place-items: center;
+        padding: 60px 0;
+        height: 100%;
+    }
+    .o_jd_spinner {
+        width: 22px;
+        height: 22px;
+        border: 2px solid rgba(21, 89, 75, 0.18);
+        border-top-color: $jd-green;
+        border-radius: 50%;
+        animation: o_jd_spin 0.7s linear infinite;
+    }
+    @keyframes o_jd_spin { to { transform: rotate(360deg); } }
+
+    // ---------- shared bits ----------
+    .o_jd_eyebrow {
+        @include jd-eyebrow(9px);
+        color: $jd-ink-faint;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .o_jd_eyebrow_mark {
+        width: 7px;
+        height: 7px;
+        background: $jd-green;
+        display: inline-block;
+    }
+    .o_jd_eyebrow_plain { margin-bottom: 7px; }
+
+    .o_jd_btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 36px;
+        padding: 0 16px;
+        border-radius: 3px;
+        border: 1px solid transparent;
+        font-size: 12px;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s, color 0.15s;
+        i.fa { font-size: 11px; }
+    }
+    .o_jd_btn_ghost {
+        background: #fff;
+        border-color: $jd-line;
+        color: $jd-ink;
+        &:hover { border-color: $jd-green-2; color: $jd-green; }
+    }
+    .o_jd_btn_primary {
+        background: $jd-green;
+        color: #fff;
+        &:hover { background: #0f453a; }
+    }
+
+    .o_jd_dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+        background: $jd-ink-faint;
+    }
+    .o_jd_dot_free { background: #2fa37e; }
+    .o_jd_dot_busy { background: $jd-amber; }
+    .o_jd_dot_conflict { background: $jd-red; }
+
+    // ==================== HERO ====================
+    .o_jd_hero {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 26px;
+        padding: 20px 26px 22px;
+        background: $jd-card;
+        border: 1px solid $jd-line;
+        border-radius: 4px;
+    }
+    .o_jd_hero_text { min-width: 0; }
+    .o_jd_hero_title {
+        margin: 10px 0 6px;
+        font-size: 29px;
+        line-height: 1.14;
+        font-weight: 500;
+        letter-spacing: -0.022em;
+        color: #131a18;
+    }
+    .o_jd_hero_sub { margin: 0; font-size: 12.5px; color: $jd-ink-soft; }
+
+    .o_jd_hero_side {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 12px;
+        flex: 0 0 auto;
+    }
+    .o_jd_hero_actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .o_jd_live {
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        padding: 8px 11px 9px;
+        border: 1px solid $jd-line;
+        border-radius: 4px;
+        background: #fbfaf7;
+    }
+    .o_jd_wave {
+        display: flex;
+        align-items: flex-end;
+        gap: 2px;
+        width: 108px;
+        height: 26px;
+    }
+    .o_jd_wave_bar {
+        flex: 1 1 0;
+        min-height: 2px;
+        background: rgba(21, 89, 75, 0.14);
+        border-radius: 1px;
+        &.o_jd_wave_on { background: $jd-green-3; }
+    }
+    .o_jd_live_meta { display: flex; flex-direction: column; gap: 3px; }
+    .o_jd_live_label {
+        @include jd-eyebrow(8.5px);
+        color: $jd-ink-faint;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .o_jd_live_dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: $jd-green-3;
+        box-shadow: 0 0 0 3px rgba(63, 174, 134, 0.18);
+    }
+    .o_jd_live_day { font-family: $jd-mono; font-size: 10.5px; color: $jd-ink-soft; }
+
+    // ==================== STAT TILES ====================
+    .o_jd_stats {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        background: $jd-card;
+        border: 1px solid $jd-line;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    .o_jd_stat {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        gap: 11px;
+        padding: 14px 16px;
+        border: 0;
+        border-right: 1px solid $jd-line-soft;
+        background: transparent;
+        text-align: left;
+        cursor: pointer;
+        transition: background 0.15s;
+        &:last-child { border-right: 0; }
+        &:hover { background: #fbfaf7; }
+    }
+    .o_jd_stat_icon {
+        flex: 0 0 30px;
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        display: grid;
+        place-items: center;
+        font-size: 13px;
+        color: #2c3a35;
+    }
+    .o_jd_stat_green  .o_jd_stat_icon { background: #dfeade; }
+    .o_jd_stat_mint   .o_jd_stat_icon { background: #d8eee6; }
+    .o_jd_stat_blue   .o_jd_stat_icon { background: #dde7ef; }
+    .o_jd_stat_amber  .o_jd_stat_icon { background: #f6e7c7; }
+    .o_jd_stat_violet .o_jd_stat_icon { background: #e5e2f0; }
+    .o_jd_stat_rose   .o_jd_stat_icon { background: #f6dcdc; }
+
+    .o_jd_stat_body { display: flex; flex-direction: column; min-width: 0; }
+    .o_jd_stat_label {
+        @include jd-eyebrow(8.5px);
+        color: $jd-ink-faint;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .o_jd_stat_value {
+        font-size: 26px;
+        line-height: 1.18;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+    }
+    .o_jd_stat_hint { font-size: 10.5px; color: $jd-ink-faint; }
+    .o_jd_stat_more {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: $jd-ink-faint;
+        font-size: 14px;
+    }
+
+    // ==================== WORKSPACE ====================
+    .o_jd_ws {
+        background: $jd-card;
+        border: 1px solid $jd-line;
+        border-radius: 4px;
+        padding: 18px 20px 20px;
+        display: flex;
+        flex-direction: column;
+
+        > * { flex: 0 0 auto; }
+    }
+    .o_jd_ws_head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+    }
+    .o_jd_ws_title {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        h2 {
+            margin: 0;
+            font-size: 21px;
+            font-weight: 500;
+            letter-spacing: -0.015em;
+        }
+    }
+    .o_jd_ws_range { font-size: 11.5px; color: $jd-ink-faint; font-family: $jd-mono; }
+
+    .o_jd_ws_controls { display: flex; align-items: center; gap: 10px; }
+    .o_jd_pager {
+        display: flex;
+        align-items: center;
+        border: 1px solid $jd-line;
+        border-radius: 3px;
+        overflow: hidden;
+        background: #fff;
+    }
+    .o_jd_pager_btn,
+    .o_jd_pager_today {
+        height: 34px;
+        border: 0;
+        background: #fff;
+        color: $jd-ink;
+        cursor: pointer;
+        font-size: 11px;
+        &:hover { background: #f4f2ec; }
+    }
+    .o_jd_pager_btn { width: 36px; }
+    .o_jd_pager_today {
+        @include jd-eyebrow(9.5px);
+        padding: 0 14px;
+        border-left: 1px solid $jd-line;
+        border-right: 1px solid $jd-line;
+    }
+    .o_jd_segment {
+        display: flex;
+        border: 1px solid $jd-line;
+        border-radius: 3px;
+        background: #f7f5f0;
+        padding: 3px;
+        gap: 2px;
+        button {
+            height: 28px;
+            padding: 0 13px;
+            border: 0;
+            border-radius: 2px;
+            background: transparent;
+            color: $jd-ink-soft;
+            font-size: 11.5px;
+            cursor: pointer;
+            &:hover { color: $jd-ink; }
+        }
+        .o_jd_seg_on {
+            background: #fff;
+            color: $jd-green;
+            box-shadow: 0 1px 2px rgba(20, 35, 30, 0.08);
+        }
+    }
+
+    // ---------- day tabs ----------
+    .o_jd_days {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        border-bottom: 1px solid $jd-line;
+    }
+    .o_jd_days_list { display: flex; }
+    .o_jd_day {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        min-width: 62px;
+        padding: 8px 14px 9px;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        background: transparent;
+        cursor: pointer;
+        &:hover .o_jd_day_num { color: $jd-green; }
+    }
+    .o_jd_day_dow { @include jd-eyebrow(8.5px); color: $jd-ink-faint; }
+    .o_jd_day_num { font-size: 16px; line-height: 1.2; color: $jd-ink; }
+    .o_jd_day_on {
+        border-bottom-color: $jd-green-2;
+        background: linear-gradient(180deg, rgba(47, 122, 99, 0.07), rgba(47, 122, 99, 0));
+        .o_jd_day_dow { color: $jd-green-2; }
+        .o_jd_day_num { color: $jd-green; }
+    }
+    .o_jd_day_today .o_jd_day_num {
+        position: relative;
+        &::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: -4px;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: $jd-green-3;
+        }
+    }
+    .o_jd_legend {
+        display: flex;
+        gap: 14px;
+        padding-bottom: 9px;
+        span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10.5px;
+            color: $jd-ink-soft;
+        }
+    }
+
+    // ---------- filters ----------
+    .o_jd_filters {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 13px 0;
+    }
+    .o_jd_search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 34px;
+        flex: 1 1 180px;
+        max-width: 230px;
+        margin: 0;
+        padding: 0 11px;
+        border: 1px solid $jd-line;
+        border-radius: 3px;
+        background: #fff;
+        color: $jd-ink-faint;
+        i.fa { font-size: 11px; }
+        input {
+            flex: 1 1 auto;
+            min-width: 0;
+            border: 0;
+            outline: 0;
+            background: transparent;
+            font-size: 12px;
+            color: $jd-ink;
+            &::placeholder { color: $jd-ink-faint; }
+        }
+    }
+    .o_jd_filters select {
+        height: 34px;
+        min-width: 128px;
+        max-width: 168px;
+        padding: 0 28px 0 11px;
+        border: 1px solid $jd-line;
+        border-radius: 3px;
+        background-color: #fff;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%239aa19c' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        appearance: none;
+        font-size: 12px;
+        color: $jd-ink;
+        cursor: pointer;
+        &:hover { border-color: darken($jd-line, 8%); }
+    }
+    .o_jd_reset {
+        @include jd-eyebrow(9px);
+        margin-left: auto;
+        border: 0;
+        background: none;
+        color: $jd-ink-faint;
+        cursor: pointer;
+        &:hover { color: $jd-green; }
+    }
+
+    // ==================== GRID ====================
+    .o_jd_grid {
+        --jd-time-w: 74px;
+        --jd-col-min: 132px;
+        border: 1px solid $jd-line;
+        border-radius: 3px;
+        background: #fff;
+        // the full 08:00-22:00 day renders at natural height (no cramped
+        // inner scrollbox); the page scrolls vertically, the grid sideways
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+    .o_jd_grid_head,
+    .o_jd_grid_body {
+        display: grid;
+        grid-template-columns: var(--jd-time-w) 1fr;
+        min-width: calc(var(--jd-time-w) + var(--jd-cols) * var(--jd-col-min));
+    }
+    .o_jd_grid_head {
+        position: sticky;
+        top: 0;
+        z-index: 6;
+        background: #fff;
+        border-bottom: 1px solid $jd-line;
+    }
+    .o_jd_time_head {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 3px;
+        padding: 12px 10px;
+        border-right: 1px solid $jd-line;
+    }
+    .o_jd_time_head_label { @include jd-eyebrow(8.5px); color: $jd-ink-faint; }
+    .o_jd_time_head_day { font-size: 10.5px; color: $jd-ink-soft; }
+
+    .o_jd_head_cols,
+    .o_jd_cols {
+        display: grid;
+        grid-template-columns: repeat(var(--jd-cols), minmax(var(--jd-col-min), 1fr));
+    }
+    .o_jd_col_head {
+        position: relative;
+        padding: 12px 14px;
+        border-right: 1px solid $jd-line-soft;
+        &:last-child { border-right: 0; }
+        .o_jd_dot { position: absolute; top: 14px; right: 12px; }
+    }
+    .o_jd_col_title {
+        display: block;
+        font-size: 13px;
+        letter-spacing: 0.02em;
+        color: $jd-ink;
+    }
+    .o_jd_col_sub { display: block; font-size: 10.5px; color: $jd-ink-faint; margin-top: 2px; }
+    .o_jd_col_today .o_jd_col_title { color: $jd-green; }
+
+    .o_jd_time_col {
+        position: relative;
+        height: var(--jd-grid-h);
+        border-right: 1px solid $jd-line;
+    }
+    .o_jd_hour_label {
+        position: absolute;
+        right: 11px;
+        transform: translateY(-50%);
+        font-family: $jd-mono;
+        font-size: 10.5px;
+        color: $jd-ink-faint;
+    }
+    .o_jd_cols { position: relative; height: var(--jd-grid-h); }
+    .o_jd_col {
+        position: relative;
+        height: var(--jd-grid-h);
+        border-right: 1px solid $jd-line-soft;
+        cursor: copy;
+        &:last-child { border-right: 0; }
+        &:hover { background: rgba(47, 122, 99, 0.018); }
+    }
+    .o_jd_hour_line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: $jd-line-soft;
+        pointer-events: none;
+    }
+
+    .o_jd_event {
+        position: absolute;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        padding: 7px 9px;
+        border: 1px solid transparent;
+        border-left: 3px solid $jd-mint-line;
+        border-radius: 3px;
+        background: $jd-mint;
+        overflow: hidden;
+        cursor: pointer;
+        text-align: left;
+        transition: box-shadow 0.15s, transform 0.15s;
+        &:hover {
+            box-shadow: 0 8px 20px rgba(20, 40, 34, 0.14);
+            transform: translateY(-1px);
+            z-index: 4;
+        }
+    }
+    .o_jd_ev_type {
+        @include jd-eyebrow(8px);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: rgba(26, 33, 31, 0.55);
+        i.fa { font-size: 9px; }
+    }
+    .o_jd_ev_title {
+        font-size: 12.5px;
+        font-weight: 500;
+        line-height: 1.25;
+        color: #131a18;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .o_jd_ev_code {
+        font-size: 10.5px;
+        color: $jd-ink-soft;
+        display: flex;
+        gap: 6px;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .o_jd_ev_room { color: $jd-ink-faint; }
+    .o_jd_ev_time {
+        margin-top: auto;
+        font-family: $jd-mono;
+        font-size: 10.5px;
+        color: $jd-ink-soft;
+    }
+    .o_jd_event_internal {
+        background: $jd-grey;
+        border-left-color: $jd-grey-line;
+    }
+    .o_jd_event_conflict {
+        background: $jd-rose;
+        border-left-color: $jd-rose-line;
+        .o_jd_ev_type { color: rgba(120, 32, 45, 0.66); }
+    }
+
+    .o_jd_now {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 0;
+        border-top: 1px solid $jd-green-2;
+        z-index: 5;
+        pointer-events: none;
+    }
+    .o_jd_now_pill {
+        position: absolute;
+        top: -9px;
+        left: -60px;
+        min-width: 52px;
+        text-align: center;
+        background: $jd-green;
+        color: #fff;
+        font-family: $jd-mono;
+        font-size: 10px;
+        padding: 3px 6px;
+        border-radius: 3px;
+    }
+
+    // ==================== ROOMS VIEW ====================
+    .o_jd_rooms {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(292px, 1fr));
+        gap: 12px;
+    }
+    .o_jd_room {
+        border: 1px solid $jd-line;
+        border-radius: 3px;
+        padding: 14px 16px 15px;
+        background: #fff;
+    }
+    .o_jd_room_head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 11px;
+    }
+    .o_jd_room_name { font-size: 14px; font-weight: 500; }
+    .o_jd_room_sub { font-size: 10.5px; color: $jd-ink-faint; margin-top: 2px; }
+    .o_jd_room_gauge { text-align: right; }
+    .o_jd_room_pct { font-family: $jd-mono; font-size: 11px; color: $jd-ink-soft; }
+    .o_jd_room_bar {
+        display: block;
+        width: 84px;
+        height: 4px;
+        margin-top: 5px;
+        border-radius: 2px;
+        background: $jd-line-soft;
+        overflow: hidden;
+        span { display: block; height: 100%; background: $jd-green-2; }
+    }
+    .o_jd_room_events { display: flex; flex-direction: column; gap: 5px; }
+    .o_jd_room_event {
+        display: grid;
+        grid-template-columns: 96px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        width: 100%;
+        padding: 7px 9px;
+        border: 1px solid transparent;
+        border-left: 3px solid $jd-mint-line;
+        border-radius: 3px;
+        background: $jd-mint;
+        cursor: pointer;
+        text-align: left;
+        &:hover { box-shadow: 0 4px 12px rgba(20, 40, 34, 0.1); }
+    }
+    .o_jd_room_time { font-family: $jd-mono; font-size: 10.5px; color: $jd-ink-soft; }
+    .o_jd_room_title {
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .o_jd_room_code { font-size: 10.5px; color: $jd-ink-faint; }
+    .o_jd_room_empty {
+        font-size: 11.5px;
+        color: $jd-ink-faint;
+        padding: 8px 0;
+    }
+    .o_jd_room_free {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 11px;
+        padding-top: 11px;
+        border-top: 1px dashed $jd-line;
+    }
+    .o_jd_room_free_label { @include jd-eyebrow(8.5px); color: $jd-ink-faint; }
+    .o_jd_free_chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 26px;
+        padding: 0 9px;
+        border: 1px dashed rgba(47, 122, 99, 0.45);
+        border-radius: 3px;
+        background: rgba(47, 122, 99, 0.05);
+        color: $jd-green;
+        font-family: $jd-mono;
+        font-size: 10.5px;
+        cursor: pointer;
+        &:hover { background: rgba(47, 122, 99, 0.12); border-style: solid; }
+        i.fa { font-size: 9px; }
+    }
+
+    // ==================== DRAWER ====================
+    .o_jd_backdrop {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        background: rgba(246, 244, 239, 0.42);
+        backdrop-filter: blur(3px);
+    }
+    .o_jd_drawer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 21;
+        width: 48%;
+        min-width: 380px;
+        max-width: 520px;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border-left: 1px solid $jd-line;
+        box-shadow: -22px 0 54px rgba(18, 34, 28, 0.12);
+    }
+    .o_jd_drawer_top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 18px 20px 6px;
+    }
+    .o_jd_round_btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid $jd-line;
+        background: #fff;
+        color: $jd-ink-soft;
+        cursor: pointer;
+        &:hover { border-color: $jd-ink-faint; color: $jd-ink; }
+    }
+    .o_jd_round_danger {
+        margin-left: auto;
+        border-color: rgba(201, 84, 106, 0.5);
+        color: $jd-rose-line;
+        &:hover { background: rgba(201, 84, 106, 0.08); border-color: $jd-rose-line; }
+    }
+    .o_jd_chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        @include jd-eyebrow(8.5px);
+        padding: 5px 10px;
+        border-radius: 3px;
+        background: $jd-mint;
+        color: #1d4d41;
+        i.fa { font-size: 9px; }
+    }
+    .o_jd_chip_internal { background: $jd-grey; color: #4a463d; }
+    .o_jd_chip_conflict { background: $jd-rose; color: #7a2231; }
+
+    .o_jd_drawer_body {
+        flex: 1 1 auto;
+        overflow: auto;
+        padding: 14px 26px 22px;
+    }
+    .o_jd_drawer_state { @include jd-eyebrow(8.5px); color: $jd-ink-faint; }
+    .o_jd_drawer_title {
+        margin: 8px 0 4px;
+        font-size: 28px;
+        font-weight: 500;
+        letter-spacing: -0.022em;
+        line-height: 1.15;
+    }
+    .o_jd_drawer_sub { margin: 0 0 20px; font-size: 12.5px; color: $jd-ink-soft; }
+
+    .o_jd_ww {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        border: 1px solid $jd-line;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .o_jd_ww_box {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 13px 15px;
+        &:first-child { border-right: 1px solid $jd-line; }
+    }
+    .o_jd_ww_label { @include jd-eyebrow(8.5px); color: $jd-ink-faint; margin-bottom: 3px; }
+    .o_jd_ww_value { font-size: 12.5px; }
+
+    .o_jd_drawer_section {
+        @include jd-eyebrow(8.5px);
+        color: $jd-ink-faint;
+        margin: 22px 0 8px;
+    }
+    .o_jd_rows { display: flex; flex-direction: column; }
+    .o_jd_row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 11px 0;
+        border-bottom: 1px solid $jd-line-soft;
+        &:last-child { border-bottom: 0; }
+    }
+    .o_jd_row_label { font-size: 12.5px; color: $jd-ink-soft; }
+    .o_jd_row_value { font-size: 12.5px; font-weight: 500; text-align: right; }
+    .o_jd_drawer_notes { margin: 0; font-size: 12.5px; color: $jd-ink-soft; line-height: 1.5; }
+
+    .o_jd_drawer_foot {
+        display: flex;
+        gap: 10px;
+        padding: 14px 20px 18px;
+        border-top: 1px solid $jd-line-soft;
+        .o_jd_btn { flex: 1 1 0; justify-content: center; }
+    }
+
+    // ==================== RESPONSIVE ====================
+    @media (max-width: 1400px) {
+        .o_jd_stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .o_jd_stat:nth-child(3) { border-right: 0; }
+    }
+    @media (max-width: 1100px) {
+        .o_jd_hero { flex-direction: column; }
+        .o_jd_hero_side { align-items: flex-start; width: 100%; }
+    }
+    @media (max-width: 860px) {
+        .o_jd_stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .o_jd_drawer { width: 100%; }
+    }
+}
+
+// ==================== DIALOGS ====================
+.o_jd_dialog {
+    font-family: $jd-sans;
+
+    .o_jd_free_filters {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding-bottom: 14px;
+        margin-bottom: 14px;
+        border-bottom: 1px solid $jd-line;
+        label { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+        span { @include jd-eyebrow(8.5px); color: $jd-ink-faint; }
+        input,
+        select {
+            height: 32px;
+            min-width: 140px;
+            border: 1px solid $jd-line;
+            border-radius: 3px;
+            padding: 0 9px;
+            font-size: 12px;
+            background: #fff;
+        }
+    }
+    .o_jd_free_total { font-size: 12px; color: $jd-ink-soft; margin-bottom: 10px; }
+    .o_jd_free_day { margin-bottom: 16px; }
+    .o_jd_free_day_label {
+        @include jd-eyebrow(9px);
+        color: $jd-green;
+        padding-bottom: 6px;
+        border-bottom: 1px solid $jd-line-soft;
+        margin-bottom: 8px;
+    }
+    .o_jd_free_room {
+        display: grid;
+        grid-template-columns: 150px minmax(0, 1fr);
+        gap: 12px;
+        align-items: center;
+        padding: 5px 0;
+    }
+    .o_jd_free_room_name {
+        font-size: 12.5px;
+        small { display: block; color: $jd-ink-faint; font-size: 10.5px; }
+    }
+    .o_jd_free_windows { display: flex; gap: 6px; flex-wrap: wrap; }
+    .o_jd_free_chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 26px;
+        padding: 0 9px;
+        border: 1px dashed rgba(47, 122, 99, 0.45);
+        border-radius: 3px;
+        background: rgba(47, 122, 99, 0.05);
+        color: $jd-green;
+        font-family: $jd-mono;
+        font-size: 10.5px;
+        cursor: pointer;
+        &:hover { background: rgba(47, 122, 99, 0.12); border-style: solid; }
+    }
+    .o_jd_free_empty { font-size: 12.5px; color: $jd-ink-faint; padding: 12px 0; }
+
+    .o_jd_conflict {
+        border: 1px solid $jd-line;
+        border-radius: 3px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+    }
+    .o_jd_conflict_head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12.5px;
+        margin-bottom: 10px;
+        i.fa { color: $jd-rose-line; }
+        small { color: $jd-ink-faint; margin-left: auto; font-size: 10.5px; }
+    }
+    .o_jd_conflict_pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        gap: 10px;
+        align-items: center;
+        button {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 9px 11px;
+            border: 1px solid transparent;
+            border-left: 3px solid $jd-rose-line;
+            border-radius: 3px;
+            background: $jd-rose;
+            text-align: left;
+            cursor: pointer;
+            &:hover { box-shadow: 0 4px 12px rgba(120, 32, 45, 0.12); }
+        }
+    }
+    .o_jd_conflict_time { font-family: $jd-mono; font-size: 10.5px; color: #7a2231; }
+    .o_jd_conflict_title { font-size: 12.5px; font-weight: 500; }
+    .o_jd_conflict_code { font-size: 10.5px; color: $jd-ink-soft; }
+    .o_jd_conflict_vs { color: $jd-ink-faint; font-size: 12px; }
+}

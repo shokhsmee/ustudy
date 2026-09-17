@@ -3,6 +3,12 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from datetime import timedelta
 
 
+# Group states in which the course is over: the group has left the schedule.
+# Its lessons must not appear on the timetable/board any more, must not hold a
+# room, and no new lesson may be added to it (see edu_timetable.py).
+CLOSED_GROUP_STATES = ("done", "cancelled")
+
+
 def teacher_locked(env):
     """Teachers may only run the attendance flow; scheduling and group
     administration stay admin-only (system admins and the Administrator
@@ -563,13 +569,74 @@ class EduGroup(models.Model):
         # A finished course leaves the schedule: its not-yet-held lessons are
         # cancelled so they disappear from the timetable/board and stop holding
         # the room (the conflict check ignores cancelled entries). Held lessons
-        # (in_progress/completed) keep their attendance history untouched.
-        if vals.get("state") == "done":
-            self.env["edu.timetable"].sudo().search([
+        # (in_progress/completed) keep their attendance history untouched —
+        # EXCEPT future-dated in_progress ones: a lesson that has not happened
+        # yet cannot be "held", so it is a leftover of an abandoned davomat
+        # flow and would otherwise stay on the board forever.
+        if vals.get("state") in CLOSED_GROUP_STATES:
+            Timetable = self.env["edu.timetable"].sudo()
+            Timetable.search([
                 ("group_id", "in", self.ids),
-                ("state", "=", "scheduled"),
-            ]).write({"state": "cancelled"})
+                "|",
+                    ("state", "=", "scheduled"),
+                    "&",
+                        ("state", "=", "in_progress"),
+                        ("start_datetime", ">", fields.Datetime.now()),
+            ]).write({"state": "cancelled", "auto_cancelled_on_done": True})
+        # ...and reopening it puts them back: the status bar is clickable, so a
+        # group gets flipped to "Tugallandi" and back easily, and without this
+        # the whole schedule stayed cancelled (silently, until someone noticed
+        # the group had vanished from the board) and had to be regenerated.
+        elif vals.get("state") == "running":
+            self._restore_auto_cancelled_lessons()
         return res
+
+    def _restore_auto_cancelled_lessons(self):
+        """Bring back the lessons the "course finished" hook cancelled.
+
+        Only rows flagged by that hook are touched — manual cancellations
+        (holidays, moved lessons) stay cancelled. Slots already taken by a live
+        lesson are skipped (the partial unique index on group_id/start_datetime
+        would reject them), and a room taken meanwhile is reported in the
+        chatter instead of silently dropping the lesson."""
+        Timetable = self.env["edu.timetable"].sudo()
+        for group in self:
+            rows = Timetable.search([
+                ("group_id", "=", group.id),
+                ("state", "=", "cancelled"),
+                ("auto_cancelled_on_done", "=", True),
+            ], order="start_datetime asc")
+            if not rows:
+                continue
+            taken = set(Timetable.search([
+                ("group_id", "=", group.id),
+                ("state", "!=", "cancelled"),
+            ]).mapped("start_datetime"))
+            restorable = Timetable
+            for row in rows:
+                if row.start_datetime in taken:
+                    continue
+                taken.add(row.start_datetime)  # two cancelled rows can share a slot
+                restorable |= row
+            # the flag has done its job either way — clear it on all of them so
+            # a later reopen doesn't resurrect lessons cancelled by hand since
+            (rows - restorable).write({"auto_cancelled_on_done": False})
+            if not restorable:
+                continue
+            busy = restorable.filtered(lambda r: r._room_taken_by_other_group())
+            restorable.write({"state": "scheduled", "auto_cancelled_on_done": False})
+            body = _("♻️ Guruh qayta ishga tushirildi: %s ta dars jadvalga qaytarildi.") % len(restorable)
+            if busy:
+                body += _(
+                    "<br/>⚠️ Quyidagi darslar vaqtida xona boshqa guruhga berilgan "
+                    "— jadvalni tekshiring: %s"
+                ) % ", ".join(
+                    "%s (%s)" % (
+                        fields.Datetime.context_timestamp(r, r.start_datetime).strftime("%d.%m.%Y %H:%M"),
+                        r.room_id.name,
+                    ) for r in busy[:10]
+                )
+            group.message_post(body=body)
 
 
     attendance_count = fields.Integer(

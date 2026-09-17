@@ -195,7 +195,12 @@
         <field name="res_model">edu.timetable</field>
         <field name="view_mode">room_bandlik,list,form</field>
         <field name="view_id" ref="view_edu_timetable_room_bandlik"/>
-        <field name="domain">[('group_active','=',True),('state','!=','cancelled')]</field>
+        <!-- Archived AND finished/cancelled groups are off the schedule: their
+             remaining lessons must not occupy the room grid. Group state is
+             read through group_id (not the stored group_active copy) so a
+             stale copy can never hide a live lesson. History stays reachable
+             from the group form ("Timetable" button / Davomat). -->
+        <field name="domain">[('group_id.active','=',True),('state','!=','cancelled'),('group_id.state','not in',['done','cancelled'])]</field>
         <field name="search_view_id" ref="view_edu_timetable_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
@@ -213,7 +218,9 @@
         <field name="name">Timetable</field>
         <field name="res_model">edu.timetable</field>
         <field name="view_mode">calendar,list,form</field>
-        <field name="domain">[('group_active','=',True)]</field>
+        <!-- see action_edu_timetable_rooms: an archived or finished group's
+             lessons are no longer part of the timetable -->
+        <field name="domain">[('group_id.active','=',True),('group_id.state','not in',['done','cancelled'])]</field>
         <field name="search_view_id" ref="view_edu_timetable_search"/>
 
         <field name="context">{'search_default_scheduled_from_today': 1}</field>

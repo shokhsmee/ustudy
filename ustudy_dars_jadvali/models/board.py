@@ -3,6 +3,8 @@ from math import ceil
 
 from odoo import api, fields, models
 
+from odoo.addons.ustudy_group.models.edu_group import CLOSED_GROUP_STATES
+
 from .booking import PURPOSE_LABELS
 
 # 30-minute board grid. The window is FIXED: every day shows 08:00-22:00
@@ -15,10 +17,25 @@ FIXED_START_MIN = 8 * 60            # 08:00
 FIXED_END_MIN = 22 * 60             # 22:00
 SLOT_MINUTES = 30
 
+# Shortest bookable window (user rule 2026-08-24): a room counts as
+# "bo'sh" only when at least one 1,5-hour gap fits somewhere in the
+# period, since that is the length of a normal lesson.
+FREE_SLOT_MINUTES = 90
+
 # Mon/Wed/Fri = toq (odd) block, Tue/Thu/Sat = juft (even) block. Sunday is
 # not part of the board.
 PARITY_BY_WEEKDAY = {0: "toq", 2: "toq", 4: "toq", 1: "juft", 3: "juft", 5: "juft"}
 PARITY_LABELS = {"toq": "Dush / Chor / Jum", "juft": "Sesh / Pay / Shan"}
+BLOCK_WEEKDAYS = {"toq": [0, 2, 4], "juft": [1, 3, 5]}
+
+# Cards are grouped per 3-day block, so a card that does NOT run on every day
+# of its block (a one-off/extra lesson, a make-up moved to another hour) is
+# indistinguishable from a regular one. Those cards get a day badge.
+UZ_DAY_NAMES = {
+    0: "Dushanba", 1: "Seshanba", 2: "Chorshanba",
+    3: "Payshanba", 4: "Juma", 5: "Shanba",
+}
+UZ_DAY_SHORT = {0: "Du", 1: "Se", 2: "Chor", 3: "Pay", 4: "Jum", 5: "Shan"}
 
 UZ_MONTHS = [
     "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
@@ -137,6 +154,138 @@ class DarsJadvaliBoard(models.AbstractModel):
             "students": students,
         }
 
+    # ------------------------------------------------------------------
+    # room occupancy: free windows + period stats
+    # ------------------------------------------------------------------
+    @api.model
+    def _busy_intervals(self, date_from, date_to, room_ids):
+        """{(room_id, local_date): [(start_min, end_min), ...]} — everything
+        that holds a room in the period. Mirrors the room-conflict guards:
+        lessons of closed/archived groups don't hold a room, bookings do.
+        Group/teacher filters are deliberately NOT applied — a room stays busy
+        no matter which group the board is currently showing."""
+        busy = {}
+        if not room_ids:
+            return busy
+
+        def add(room_id, local, local_end):
+            if not local or not local_end or local_end <= local:
+                return
+            day = local.date()
+            start = local.hour * 60 + local.minute
+            end = (
+                local_end.hour * 60 + local_end.minute
+                if local_end.date() == day
+                else 24 * 60
+            )
+            busy.setdefault((room_id, day), []).append((start, end))
+
+        # stored start_date is the UTC date, so a lesson can sit one day off
+        # its local date; search one day wider and bucket by the local date
+        lessons = self.env["edu.timetable"].search([
+            ("state", "!=", "cancelled"),
+            ("group_id.active", "=", True),
+            ("group_id.state", "not in", list(CLOSED_GROUP_STATES)),
+            ("room_id", "in", room_ids),
+            ("start_date", ">=", date_from - timedelta(days=1)),
+            ("start_date", "<=", date_to + timedelta(days=1)),
+        ])
+        for lesson in lessons:
+            add(
+                lesson.room_id.id,
+                fields.Datetime.context_timestamp(lesson, lesson.start_datetime),
+                fields.Datetime.context_timestamp(lesson, lesson.end_datetime)
+                if lesson.end_datetime else None,
+            )
+
+        Group = self.env["edu.group"]
+        bookings = self.env["dars.jadvali.booking"].search([
+            ("room_id", "in", room_ids),
+            ("start_datetime", ">=", Group._make_utc_datetime(date_from, 0.0)),
+            ("start_datetime", "<", Group._make_utc_datetime(
+                date_to + timedelta(days=1), 0.0)),
+        ])
+        for bk in bookings:
+            add(
+                bk.room_id.id,
+                fields.Datetime.context_timestamp(bk, bk.start_datetime),
+                fields.Datetime.context_timestamp(bk, bk.end_datetime)
+                if bk.end_datetime else None,
+            )
+        return busy
+
+    @api.model
+    def _free_windows(self, date_from, date_to, room_ids, min_minutes=FREE_SLOT_MINUTES):
+        """Every gap of at least `min_minutes` inside the 08:00-22:00 board day,
+        per room and per day (Sunday is not on the board)."""
+        busy = self._busy_intervals(date_from, date_to, room_ids)
+        rooms = self.env["edu.room"].browse(room_ids)
+        info = {r.id: (r.name, r.capacity) for r in rooms}
+
+        windows = []
+        day = date_from
+        while day <= date_to:
+            if day.weekday() == 6:
+                day += timedelta(days=1)
+                continue
+            for rid in room_ids:
+                cursor = FIXED_START_MIN
+                for start, end in sorted(busy.get((rid, day), [])):
+                    start = max(start, FIXED_START_MIN)
+                    end = min(end, FIXED_END_MIN)
+                    if start - cursor >= min_minutes:
+                        windows.append((rid, day, cursor, start))
+                    cursor = max(cursor, end)
+                if FIXED_END_MIN - cursor >= min_minutes:
+                    windows.append((rid, day, cursor, FIXED_END_MIN))
+            day += timedelta(days=1)
+
+        out = []
+        for rid, day, start, end in windows:
+            name, capacity = info.get(rid, ("", 0))
+            out.append({
+                "room_id": rid,
+                "room_name": name,
+                "capacity": capacity,
+                "date": fields.Date.to_string(day),
+                "weekday": day.weekday(),
+                "day_label": "%s, %s" % (
+                    UZ_DAY_NAMES[day.weekday()], day.strftime("%d.%m")),
+                "start_min": start,
+                "end_min": end,
+                "label": "%02d:%02d - %02d:%02d" % (
+                    start // 60, start % 60, end // 60, end % 60),
+                # how many back-to-back lessons of min_minutes fit in the gap
+                "fits": (end - start) // min_minutes,
+            })
+        return out
+
+    @api.model
+    def _period_stats(self, date_from, date_to, room_ids, lesson_domain):
+        """The three mini-dashboard numbers for one period."""
+        free = self._free_windows(date_from, date_to, room_ids)
+        events = self.env["dars.jadvali.booking"].search_count([
+            ("room_id", "in", room_ids),
+            ("start_datetime", ">=",
+             self.env["edu.group"]._make_utc_datetime(date_from, 0.0)),
+            ("start_datetime", "<",
+             self.env["edu.group"]._make_utc_datetime(
+                 date_to + timedelta(days=1), 0.0)),
+        ])
+        groups = self.env["edu.timetable"]._read_group(
+            lesson_domain + [
+                ("start_date", ">=", date_from),
+                ("start_date", "<=", date_to),
+            ],
+            groupby=["group_id"],
+        )
+        return {
+            "free_rooms": len({w["room_id"] for w in free}),
+            "free_windows": len(free),
+            "events": events,
+            "groups": len(groups),
+        }
+
     @api.model
     def _seat_color(self, students, capacity):
         if capacity and students > capacity:
@@ -172,6 +321,11 @@ class DarsJadvaliBoard(models.AbstractModel):
         domain = [
             ("state", "!=", "cancelled"),
             ("group_id.active", "=", True),
+            # A finished ("Tugallandi") or cancelled group has left the
+            # schedule: whatever lessons survive on it (held ones keep their
+            # attendance history, and future-dated leftovers do happen) must
+            # not show up on the board any more.
+            ("group_id.state", "not in", list(CLOSED_GROUP_STATES)),
             ("start_date", ">=", date_from),
             ("start_date", "<=", date_to),
         ]
@@ -245,6 +399,7 @@ class DarsJadvaliBoard(models.AbstractModel):
 
         # ---- bucket entries: (week_monday, parity, slot_idx, room) -> groups
         snapshots = {}  # group_id -> snapshot (computed once)
+        regular_days = {}  # group_id -> {weekday indexes the group normally studies}
         buckets = {}    # (week, parity, slot, room) -> {group_id: {...}}
         week_keys = set()
 
@@ -269,6 +424,10 @@ class DarsJadvaliBoard(models.AbstractModel):
             gid = entry.group_id.id
             if gid not in snapshots:
                 snapshots[gid] = self._group_snapshot(entry.group_id)
+                regular_days[gid] = {
+                    (seq or 1) - 1
+                    for seq in entry.group_id.lesson_days.mapped("sequence")
+                }
             card = cell.setdefault(
                 gid,
                 dict(
@@ -278,11 +437,13 @@ class DarsJadvaliBoard(models.AbstractModel):
                     span=1,
                     timetable_ids=[],
                     dates=[],
+                    weekdays=[],
                 ),
             )
             card["span"] = max(card["span"], span)
             card["timetable_ids"].append(entry.id)
             card["dates"].append(local.strftime("%d.%m %H:%M"))
+            card["weekdays"].append(local.weekday())
 
         for bk, local, local_end, p in booking_items:
             s_idx = self._slot_index(local, day_start_min, day_end_min)
@@ -316,7 +477,39 @@ class DarsJadvaliBoard(models.AbstractModel):
                 "span": span,
                 "timetable_ids": [],
                 "dates": [local.strftime("%d.%m %H:%M")],
+                # a booking is always a single date (a weekly repeat creates
+                # one record per week), so it ALWAYS names its day: sitting in
+                # a 3-day block it would otherwise read as "every Du/Chor/Jum"
+                "is_extra": True,
+                "days_label": "%s · %s" % (
+                    UZ_DAY_NAMES[local.weekday()], local.strftime("%d.%m")),
             }
+
+        # ---- day badge for cards that don't cover their whole 3-day block.
+        # A card aggregates a group's lessons for one (week, block, slot,
+        # room), so an extra lesson added on a single day looks exactly like a
+        # regular Du/Chor/Jum card. Compare the days the card actually runs on
+        # against the group's own lesson days inside that block: when they
+        # differ, the card names its day(s).
+        for (monday, p, _s_idx, _rid), cell in buckets.items():
+            block_days = BLOCK_WEEKDAYS[p]
+            # a narrowed date range (a single day, half a week) cuts days out
+            # of the block by itself — nothing can be called "extra" then
+            full_block = all(
+                date_from <= monday + timedelta(days=d) <= date_to
+                for d in block_days
+            )
+            for card in cell.values():
+                if card.get("kind") == "booking":
+                    continue
+                days = sorted(set(card.pop("weekdays", [])))
+                regular = regular_days.get(card["group_id"]) or set()
+                expected = [d for d in block_days if d in regular] or block_days
+                card["is_extra"] = full_block and days != expected
+                card["days_label"] = (
+                    UZ_DAY_NAMES[days[0]] if len(days) == 1
+                    else ", ".join(UZ_DAY_SHORT[d] for d in days)
+                )
 
         # ---- assemble weeks -> blocks -> slot rows
         parities = [parity] if parity else ["toq", "juft"]
@@ -416,18 +609,131 @@ class DarsJadvaliBoard(models.AbstractModel):
             "rooms": room_infos,
             "slots": [self._slot_label(i, day_start_min) for i in range(slot_count)],
             "weeks": weeks,
+            "stats": self._board_stats(date_from, date_to, room_ids, domain),
+            "min_slot_minutes": FREE_SLOT_MINUTES,
             "filter_options": self._filter_options(),
+        }
+
+    @api.model
+    def _board_stats(self, date_from, date_to, room_ids, lesson_domain):
+        """Mini dashboards above the board, each against the previous period
+        of the same length (a week by default) for the up/down arrow."""
+        # the date bounds are re-added per period by _period_stats
+        base_domain = [
+            leaf for leaf in lesson_domain
+            if not (isinstance(leaf, (list, tuple)) and leaf[0] == "start_date")
+        ]
+        span = timedelta(days=(date_to - date_from).days + 1)
+        cur = self._period_stats(date_from, date_to, room_ids, base_domain)
+        prev = self._period_stats(
+            date_from - span, date_to - span, room_ids, base_domain)
+
+        hours = FREE_SLOT_MINUTES / 60.0
+        hours_label = ("%.1f" % hours).rstrip("0").rstrip(".").replace(".", ",")
+        return [
+            {
+                "key": "free_rooms",
+                "label": "Bo'sh xonalar soni",
+                "value": cur["free_rooms"],
+                "prev": prev["free_rooms"],
+                "delta": cur["free_rooms"] - prev["free_rooms"],
+                "hint": "%s xonadan · %s ta bo'sh %s soatlik oyna" % (
+                    len(room_ids), cur["free_windows"], hours_label),
+            },
+            {
+                "key": "events",
+                "label": "Eventlar soni",
+                "value": cur["events"],
+                "prev": prev["events"],
+                "delta": cur["events"] - prev["events"],
+                "hint": "majlis / konsultatsiya / mehmon",
+            },
+            {
+                "key": "groups",
+                "label": "Guruhlar soni",
+                "value": cur["groups"],
+                "prev": prev["groups"],
+                "delta": cur["groups"] - prev["groups"],
+                "hint": "davrda darsi bor guruhlar",
+            },
+        ]
+
+    @api.model
+    def get_free_slots(self, params=None):
+        """"Bo'sh joy topish": free windows grouped by day then room, so a new
+        lesson or event can be dropped straight into one."""
+        params = params or {}
+        today = fields.Date.context_today(self)
+        date_from = fields.Date.to_date(params.get("date_from")) or (
+            today - timedelta(days=today.weekday())
+        )
+        date_to = fields.Date.to_date(params.get("date_to")) or (
+            date_from + timedelta(days=5)
+        )
+        if date_to < date_from:
+            date_from, date_to = date_to, date_from
+
+        minutes = int(params.get("min_minutes") or FREE_SLOT_MINUTES)
+        minutes = max(SLOT_MINUTES, min(minutes, FIXED_END_MIN - FIXED_START_MIN))
+
+        Room = self.env["edu.room"]
+        room_id = params.get("room_id") or False
+        rooms = Room.browse(int(room_id)) if room_id else Room.search([("active", "=", True)])
+        rooms = rooms.sorted(lambda r: (r.sequence or 0, r.id))
+
+        windows = self._free_windows(
+            date_from, date_to, rooms.ids, min_minutes=minutes)
+
+        order = {rid: i for i, rid in enumerate(rooms.ids)}
+        days = {}
+        for w in windows:
+            day = days.setdefault(w["date"], {
+                "date": w["date"],
+                "label": w["day_label"],
+                "weekday": w["weekday"],
+                "rooms": {},
+            })
+            room = day["rooms"].setdefault(w["room_id"], {
+                "room_id": w["room_id"],
+                "room_name": w["room_name"],
+                "capacity": w["capacity"],
+                "windows": [],
+            })
+            room["windows"].append({
+                "start_min": w["start_min"],
+                "end_min": w["end_min"],
+                "label": w["label"],
+                "fits": w["fits"],
+            })
+
+        return {
+            "date_from": fields.Date.to_string(date_from),
+            "date_to": fields.Date.to_string(date_to),
+            "min_minutes": minutes,
+            "total": len(windows),
+            "days": [
+                dict(day, rooms=sorted(
+                    day["rooms"].values(),
+                    key=lambda r: order.get(r["room_id"], 0),
+                ))
+                for _d, day in sorted(days.items())
+            ],
         }
 
     @api.model
     def _filter_options(self):
         rooms = self.env["edu.room"].search([("active", "=", True)])
-        groups = self.env["edu.group"].search([("active", "=", True)], order="name")
+        # same rule as the board query: finished groups are not on the schedule
+        groups = self.env["edu.group"].search(
+            [("active", "=", True), ("state", "not in", list(CLOSED_GROUP_STATES))],
+            order="name",
+        )
         teachers = (
             groups.mapped("teacher_id")
-            | self.env["edu.timetable"].search(
-                [("group_id.active", "=", True)]
-            ).mapped("teacher_id")
+            | self.env["edu.timetable"].search([
+                ("group_id.active", "=", True),
+                ("group_id.state", "not in", list(CLOSED_GROUP_STATES)),
+            ]).mapped("teacher_id")
         ).sudo()  # names only; see comment in _group_snapshot
         return {
             "rooms": [{"id": r.id, "name": r.name} for r in rooms.sorted(lambda r: (r.sequence or 0, r.id))],

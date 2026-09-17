@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Client action: the whole workspace is one OWL screen -->
+    <record id="action_jadval_workspace" model="ir.actions.client">
+        <field name="name">Jadval maydoni</field>
+        <field name="tag">ustudy_jadval.workspace</field>
+    </record>
+
+    <!-- Own root app. The existing schedules (Guruhlar > Dars Jadvali,
+         Xonalar bandligi, Jadval doskasi) are left untouched. -->
+    <menuitem id="menu_jadval_root"
+              name="Jadval"
+              sequence="11"
+              web_icon="ustudy_jadval,static/description/icon.png"/>
+
+    <menuitem id="menu_jadval_workspace"
+              name="Jadval maydoni"
+              parent="menu_jadval_root"
+              action="action_jadval_workspace"
+              sequence="1"/>
+</odoo>

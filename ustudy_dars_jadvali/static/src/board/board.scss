@@ -55,6 +55,83 @@ $dj-red: #e8443a;
         }
     }
 
+    // -------- mini dashboards (bo'sh xonalar / eventlar / guruhlar) --------
+    .o_dj_stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 10px;
+        position: sticky;
+        left: 0;
+
+        .o_dj_stat {
+            flex: 1 1 200px;
+            min-width: 190px;
+            background: #fff;
+            border: 1px solid #d8dde3;
+            border-left: 4px solid $dj-blue;
+            border-radius: 8px;
+            padding: 8px 12px;
+        }
+
+        .o_dj_stat_free_rooms {
+            border-left-color: $dj-green;
+        }
+
+        .o_dj_stat_events {
+            border-left-color: #5c6bc0;
+        }
+
+        .o_dj_stat_label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .o_dj_stat_body {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .o_dj_stat_value {
+            font-size: 26px;
+            font-weight: 700;
+            line-height: 1.15;
+            color: #212529;
+        }
+
+        .o_dj_stat_delta {
+            font-size: 12px;
+            font-weight: 700;
+            padding: 1px 7px;
+            border-radius: 10px;
+            white-space: nowrap;
+
+            &.o_dj_delta_up {
+                color: #1b7a37;
+                background: rgba(52, 199, 89, 0.18);
+            }
+
+            &.o_dj_delta_down {
+                color: #b32821;
+                background: rgba(232, 68, 58, 0.16);
+            }
+
+            &.o_dj_delta_flat {
+                color: #6c757d;
+                background: rgba(0, 0, 0, 0.06);
+            }
+        }
+
+        .o_dj_stat_hint {
+            font-size: 11px;
+            color: #6c757d;
+        }
+    }
+
     .o_dj_loading {
         padding: 24px;
         font-size: 15px;
@@ -77,6 +154,9 @@ $dj-red: #e8443a;
             vertical-align: top;
         }
 
+        // Frozen header: each row sticks below the one above it. The offset
+        // comes from --dj-head-top, measured per row in syncStickyHeader()
+        // (all three at top:0 would overlap and bury the room names).
         thead th {
             background: $dj-blue;
             color: #fff;
@@ -84,8 +164,16 @@ $dj-red: #e8443a;
             padding: 4px 8px;
             font-size: 12px;
             position: sticky;
-            top: 0;
-            z-index: 2;
+            top: var(--dj-head-top, 0);
+            z-index: 3;
+            // border-collapse:collapse drops borders on stuck cells; the
+            // header keeps its grid lines with insets instead
+            box-shadow: inset -1px 0 0 #9db2c8, inset 0 -1px 0 #9db2c8;
+        }
+
+        // visible edge between the frozen header and the scrolling rows
+        .o_dj_rf_row th {
+            box-shadow: inset -1px 0 0 #9db2c8, 0 2px 4px rgba(0, 0, 0, 0.18);
         }
 
         .o_dj_month_row th {
@@ -116,6 +204,7 @@ $dj-red: #e8443a;
             font-size: 11px;
             padding: 2px 4px;
         }
+
 
         .o_dj_side {
             min-width: 150px;
@@ -231,6 +320,24 @@ $dj-red: #e8443a;
             font-style: italic;
         }
 
+        // day badge: only on cards that don't run every day of their block
+        // (extra/one-off lessons), so "which day is this?" is answerable
+        .o_dj_card_days {
+            margin: 2px 0 3px;
+        }
+
+        .o_dj_card_days_badge {
+            display: inline-block;
+            padding: 0 6px;
+            border-radius: 9px;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 15px;
+            letter-spacing: 0.2px;
+            background: rgba(0, 0, 0, 0.16);
+            border: 1px solid rgba(0, 0, 0, 0.2);
+        }
+
         .o_dj_card_nums {
             display: grid;
             grid-template-columns: 1fr 34px 34px;
@@ -267,6 +374,11 @@ $dj-red: #e8443a;
         .o_dj_card_key {
             color: rgba(255, 255, 255, 0.85) !important;
         }
+
+        .o_dj_card_days_badge {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
     }
 
     .o_dj_card_yellow {
@@ -281,6 +393,11 @@ $dj-red: #e8443a;
         .o_dj_card_key {
             color: rgba(255, 255, 255, 0.85) !important;
         }
+
+        .o_dj_card_days_badge {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
     }
 
     // non-lesson bookings (majlis/konsultatsiya/mehmon): visibly not a class
@@ -294,5 +411,124 @@ $dj-red: #e8443a;
         );
         color: #283593;
         border: 1px dashed #5c6bc0;
+
+        .o_dj_card_days_badge {
+            background: rgba(255, 255, 255, 0.75);
+            border-color: #5c6bc0;
+        }
+    }
+}
+
+// -------- "Bo'sh joy topish" dialog --------
+.o_dj_free_dialog {
+    .o_dj_free_filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-end;
+        padding-bottom: 10px;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #dee2e6;
+
+        .o_dj_filter {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+
+            label {
+                font-size: 11px;
+                font-weight: 600;
+                color: #6c757d;
+                margin: 0;
+            }
+
+            input,
+            select {
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                padding: 3px 6px;
+                font-size: 13px;
+                min-width: 130px;
+                background: #fff;
+            }
+        }
+    }
+
+    .o_dj_loading,
+    .o_dj_free_empty {
+        padding: 18px 2px;
+        color: #6c757d;
+    }
+
+    .o_dj_free_summary {
+        font-size: 12px;
+        color: #495057;
+        margin-bottom: 10px;
+    }
+
+    .o_dj_free_day {
+        margin-bottom: 12px;
+
+        .o_dj_free_day_head {
+            font-weight: 700;
+            font-size: 13px;
+            color: #2f5fb3;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 3px;
+            margin-bottom: 6px;
+        }
+    }
+
+    .o_dj_free_room {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        padding: 3px 0;
+
+        .o_dj_free_room_name {
+            flex: 0 0 130px;
+            font-size: 12px;
+            font-weight: 600;
+
+            .o_dj_cap {
+                font-weight: 400;
+                font-size: 10px;
+                color: #6c757d;
+            }
+        }
+    }
+
+    .o_dj_free_wins {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .o_dj_free_win {
+        border: 1px solid #9db2c8;
+        background: #eef3fa;
+        border-radius: 6px;
+        padding: 2px 9px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #2f5fb3;
+        white-space: nowrap;
+
+        &:hover {
+            background: $dj-blue;
+            border-color: $dj-blue-dark;
+            color: #fff;
+
+            .o_dj_free_fits {
+                color: rgba(255, 255, 255, 0.85);
+            }
+        }
+
+        .o_dj_free_fits {
+            font-weight: 400;
+            font-size: 10px;
+            color: #6c757d;
+            margin-left: 5px;
+        }
     }
 }
